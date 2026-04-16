@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -89,18 +89,18 @@
             return () => clearInterval(checkLibs);
           }, []);
 
-          // Processamento Inteligente de Múltiplos Ficheiros (CSV e Excel)
+          // Processamento Inteligente de Múltiplos Arquivos (CSV e Excel)
           const handleFileUpload = async (event) => {
             const files = Array.from(event.target.files);
             if (files.length === 0) return;
 
             if (!window.Papa || !window.XLSX) {
-              alert("As bibliotecas de processamento ainda estão a carregar. Aguarde um segundo.");
+              alert("As bibliotecas de processamento ainda estão carregando. Aguarde um segundo.");
               return;
             }
 
             setIsLoading(true);
-            setFileName(files.length > 1 ? `${files.length} ficheiros processados` : files[0].name);
+            setFileName(files.length > 1 ? `${files.length} arquivos processados` : files[0].name);
             
             try {
               const allDataPromises = files.map(file => {
@@ -142,7 +142,7 @@
               const validData = combinedData.filter(row => row['Send date'] || row['Template']);
               
               if (validData.length === 0) {
-                  alert("Não foi possível encontrar dados válidos nestes ficheiros.");
+                  alert("Não foi possível encontrar dados válidos nestes arquivos.");
                   setIsLoading(false);
                   return;
               }
@@ -152,7 +152,7 @@
               handleClearFilters();
             } catch (error) {
               console.error(error);
-              alert("Ocorreu um erro ao processar os dados. Verifique o formato do ficheiro.");
+              alert("Ocorreu um erro ao processar os dados. Verifique o formato do arquivo.");
             } finally {
               setIsLoading(false);
               event.target.value = '';
@@ -224,7 +224,6 @@
             const templateCount = {};
             const dateCount = {};
             const recentAnswers = [];
-            const funnelObj = { leads: 0, exams: 0, approved: 0, enrolled: 0 };
 
             filteredData.forEach(row => {
               const sentVal = row['Sent']?.toString().toLowerCase();
@@ -236,7 +235,7 @@
               // Se não foi enviado (Sent: false) ou se tem uma mensagem de erro na coluna, é uma Falha
               if (!isSent || hasErrorText) {
                 totalErrors++;
-                return; // Pula a contagem de sucesso, leitura e funil para este contacto
+                return; // Pula a contagem de sucesso, leitura e funil para este contato
               }
 
               // Se passou pela validação de erro, foi Enviado com Sucesso
@@ -258,17 +257,6 @@
                     number: row['Contact number']
                   });
                 }
-              }
-
-              const keywordSource = ((row['Campaign'] || '') + " " + (row['Template'] || '')).toLowerCase();
-              if (keywordSource.includes('inscri') || keywordSource.includes('capta') || keywordSource.includes('vestibular') || keywordSource.includes('lead')) {
-                funnelObj.leads++;
-              } else if (keywordSource.includes('prova') || keywordSource.includes('ensalamento') || keywordSource.includes('lembrete')) {
-                funnelObj.exams++;
-              } else if (keywordSource.includes('aprovad') || keywordSource.includes('resultado')) {
-                funnelObj.approved++;
-              } else if (keywordSource.includes('matr') || keywordSource.includes('boas vindas') || keywordSource.includes('calouro')) {
-                funnelObj.enrolled++;
               }
 
               const camp = row['Campaign'] === 'NA' || !row['Campaign'] ? 'Sem Campanha' : row['Campaign'];
@@ -326,8 +314,7 @@
               topCampaigns: topCampaigns.slice(0, 5),
               topTemplates: topTemplates.slice(0, 5),
               timeline,
-              recentAnswers,
-              funnel: funnelObj
+              recentAnswers
             };
           }, [filteredData]);
 
@@ -346,8 +333,8 @@
                   <div className="mb-6 bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl flex items-start gap-3">
                     <Icons.Info size={20} className="text-blue-500 shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="font-semibold text-sm">A visualizar dados de demonstração (Medicina)</h4>
-                      <p className="text-sm mt-1">Arraste ou clique no botão à direita para subir uma ou várias planilhas (.csv ou .xlsx) e ver os seus dados reais.</p>
+                      <h4 className="font-semibold text-sm">Visualizando dados de demonstração (Medicina)</h4>
+                      <p className="text-sm mt-1">Arraste ou clique no botão à direita para subir uma ou várias planilhas (.csv ou .xlsx) e ver seus dados reais.</p>
                     </div>
                   </div>
                 )}
@@ -377,7 +364,7 @@
                       </div>
                       <div className="flex flex-col text-left">
                         <span className="text-sm font-medium text-slate-700">
-                          {isLoading ? 'A ler ficheiros...' : (!libsLoaded ? 'A preparar...' : 'Carregar Ficheiros (.csv, .xlsx)')}
+                          {isLoading ? 'Lendo arquivos...' : (!libsLoaded ? 'Preparando...' : 'Carregar Arquivos (.csv, .xlsx)')}
                         </span>
                         <span className="text-xs text-slate-400 truncate max-w-[200px]">{fileName}</span>
                       </div>
@@ -417,30 +404,11 @@
                   </div>
                 ) : (
                   <>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6">
-                      <div className="flex justify-between items-start mb-6">
-                        <div className="flex items-center gap-2">
-                          <Icons.BarChartHorizontal size={22} className="text-emerald-500" />
-                          <div>
-                            <h2 className="text-lg font-semibold text-slate-800">Funil Lógico de Captação & Conversão</h2>
-                            <p className="text-xs text-slate-500 mt-0.5">Categorização baseada no comportamento e campanhas de envio (apenas envios com sucesso)</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col gap-3">
-                        <FunnelBar label="1. Topo: Captação de Leads / Inscritos" value={metrics.funnel.leads} max={metrics.totalSent} color="bg-blue-500" />
-                        <FunnelBar label="2. Meio: Ensalamento / Lembrete Prova" value={metrics.funnel.exams} max={metrics.totalSent} color="bg-purple-500" />
-                        <FunnelBar label="3. Meio: Aprovados / Resultados" value={metrics.funnel.approved} max={metrics.totalSent} color="bg-amber-500" />
-                        <FunnelBar label="4. Fundo: Matriculados / Boas-vindas" value={metrics.funnel.enrolled} max={metrics.totalSent} color="bg-emerald-500" />
-                      </div>
-                    </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-                      <StatCard title="Enviados (Sucesso)" value={metrics.totalSent.toLocaleString('pt-PT')} icon={<Icons.Smartphone className="text-blue-500" />} bgColor="bg-blue-50" subtitle="Com sucesso" />
-                      <StatCard title="Falhas (Erros)" value={metrics.totalErrors.toLocaleString('pt-PT')} icon={<Icons.XCircle className="text-red-500" />} bgColor="bg-red-50" subtitle={`${metrics.errorRate}% de erro`} />
-                      <StatCard title="Lidas" value={metrics.totalRead.toLocaleString('pt-PT')} icon={<Icons.CheckCheck className="text-emerald-500" />} bgColor="bg-emerald-50" subtitle={`${metrics.readRate}% do enviado`} />
-                      <StatCard title="Respostas" value={metrics.totalAnswered.toLocaleString('pt-PT')} icon={<Icons.MessageSquareReply className="text-orange-500" />} bgColor="bg-orange-50" subtitle={`${metrics.answerRate}% de interação`} />
+                      <StatCard title="Enviados (Sucesso)" value={metrics.totalSent.toLocaleString('pt-BR')} icon={<Icons.Smartphone className="text-blue-500" />} bgColor="bg-blue-50" subtitle="Com sucesso" />
+                      <StatCard title="Falhas (Erros)" value={metrics.totalErrors.toLocaleString('pt-BR')} icon={<Icons.XCircle className="text-red-500" />} bgColor="bg-red-50" subtitle={`${metrics.errorRate}% de erro`} />
+                      <StatCard title="Lidas" value={metrics.totalRead.toLocaleString('pt-BR')} icon={<Icons.CheckCheck className="text-emerald-500" />} bgColor="bg-emerald-50" subtitle={`${metrics.readRate}% do enviado`} />
+                      <StatCard title="Respostas" value={metrics.totalAnswered.toLocaleString('pt-BR')} icon={<Icons.MessageSquareReply className="text-orange-500" />} bgColor="bg-orange-50" subtitle={`${metrics.answerRate}% de interação`} />
                       <StatCard title="Campanhas Ativas" value={metrics.topCampaigns.length} icon={<Icons.Megaphone className="text-purple-500" />} bgColor="bg-purple-50" subtitle="Nos filtros" />
                     </div>
 
@@ -465,7 +433,7 @@
                                 {tpl[0]}
                               </span>
                               <span className="text-xs font-bold bg-slate-100 px-2.5 py-1 rounded-md text-slate-600">
-                                {tpl[1].toLocaleString('pt-PT')}
+                                {tpl[1].toLocaleString('pt-BR')}
                               </span>
                             </div>
                           ))}
@@ -640,24 +608,6 @@
           </div>
         );
 
-        const FunnelBar = ({ label, value, max, color }) => {
-          const percentage = max > 0 ? Math.max((value / max) * 100, 1) : 0; 
-          return (
-            <div className="w-full">
-              <div className="flex justify-between items-end mb-1 px-1">
-                <span className="text-sm font-medium text-slate-700">{label}</span>
-                <span className="text-sm font-bold text-slate-600">{value.toLocaleString('pt-PT')} msg</span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-lg h-5 relative overflow-hidden flex items-center">
-                <div className={`${color} h-full rounded-lg transition-all duration-1000 ease-out`} style={{ width: `${percentage}%` }}></div>
-                <span className="absolute left-3 text-[10px] font-bold text-white mix-blend-difference opacity-80">
-                  {percentage.toFixed(1)}% do volume
-                </span>
-              </div>
-            </div>
-          );
-        };
-
         const TimelineChart = ({ data, formatter }) => {
           if (data.length === 0) return <div className="text-sm text-slate-400 py-8 text-center">Sem dados de data disponíveis.</div>;
           const maxVal = Math.max(...data.map(d => d[1]), 1); 
@@ -679,7 +629,7 @@
                       )}
                       
                       <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] sm:text-xs px-2 py-1 rounded pointer-events-none whitespace-nowrap z-20 shadow-md">
-                        {day[1].toLocaleString('pt-PT')} msg
+                        {day[1].toLocaleString('pt-BR')} msg
                       </div>
                     </div>
                     <span className={`text-[10px] sm:text-xs mt-3 font-medium truncate max-w-full ${isEmpty ? 'text-slate-300' : 'text-slate-500'}`}>
