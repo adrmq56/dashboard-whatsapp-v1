@@ -46,19 +46,22 @@
             Info: (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></>} />,
             Loader2: (p) => <Icon {...p} spin path={<><path d="M21 12a9 9 0 1 1-6.219-8.56"/></>} />,
             AlertCircle: (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></>} />,
+            XCircle: (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></>} />,
             Filter: (p) => <Icon {...p} path={<><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></>} />,
             Users: (p) => <Icon {...p} path={<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>} />,
             BarChartHorizontal: (p) => <Icon {...p} path={<><path d="M3 3v18h18"/><path d="M7 16h8"/><path d="M7 11h12"/><path d="M7 6h3"/></>} />,
             ChevronDown: (p) => <Icon {...p} path={<><path d="m6 9 6 6 6-6"/></>} />,
+            Search: (p) => <Icon {...p} path={<><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></>} />
         };
 
         // --- Dados de Amostra ---
         const mockData = [
-          { "Campaign": "Captação Vestibular", "Sector": "Comercial", "Sent": "true", "Read": "Yes", "Send date": "Tue Apr 07 2026 09:56:07", "Template": "convite_inscricao_med", "Answer": "Até quando posso pagar?", "Contact number": "5571933331111", "Contact Email": "candidato1@email.com" },
-          { "Campaign": "Captação Vestibular", "Sector": "Comercial", "Sent": "true", "Read": "Yes", "Send date": "Fri Apr 24 2026 13:30:00", "Template": "lembrete_prova_medicina", "Answer": "Onde vejo o meu ensalamento?", "Contact number": "5571933332222", "Contact Email": "candidato2@email.com" },
-          { "Campaign": "Captação Vestibular", "Sector": "Comercial", "Sent": "true", "Read": "Yes", "Send date": "Fri Apr 24 2026 13:35:00", "Template": "lembrete_prova_medicina", "Answer": "Obrigado!", "Contact number": "5571933334444", "Contact Email": "candidato3@email.com" },
-          { "Campaign": "Resultados Medicina", "Sector": "Comercial", "Sent": "true", "Read": "Yes", "Send date": "Mon Apr 27 2026 10:00:00", "Template": "aviso_aprovado_med", "Answer": "Passeiiii!!!", "Contact number": "5571933335555", "Contact Email": "candidato4@email.com" },
-          { "Campaign": "Matrículas Abertas", "Sector": "Comercial", "Sent": "true", "Read": "Yes", "Send date": "Wed Apr 29 2026 14:00:00", "Template": "convite_matricula_aprovados", "Answer": "Quais os documentos necessários para a matrícula?", "Contact number": "5571977776666", "Contact Email": "candidato5@email.com" }
+          { "Campaign": "Captação Vestibular", "Sector": "Comercial", "Sent": "true", "Read": "Yes", "Send date": "Tue Apr 07 2026 09:56:07", "Template": "convite_inscricao_med", "Answer": "Até quando posso pagar?", "Contact number": "5571933331111", "Contact Email": "candidato1@email.com", "Message": "Olá, as inscrições estão abertas!", "Error Status": "NA" },
+          { "Campaign": "Captação Vestibular", "Sector": "Comercial", "Sent": "false", "Read": "No", "Send date": "Tue Apr 07 2026 10:05:00", "Template": "convite_inscricao_med", "Answer": "-", "Contact number": "5571900000000", "Contact Email": "erro@email.com", "Message": "Olá, as inscrições estão abertas!", "Error Status": "Invalid Number" },
+          { "Campaign": "Captação Vestibular", "Sector": "Comercial", "Sent": "true", "Read": "Yes", "Send date": "Fri Apr 24 2026 13:30:00", "Template": "lembrete_prova_medicina", "Answer": "Onde vejo o meu ensalamento?", "Contact number": "5571933332222", "Contact Email": "candidato2@email.com", "Message": "Lembrete: sua prova é amanhã.", "Error Status": "NA" },
+          { "Campaign": "Captação Vestibular", "Sector": "Comercial", "Sent": "true", "Read": "Yes", "Send date": "Fri Apr 24 2026 13:35:00", "Template": "lembrete_prova_medicina", "Answer": "Obrigado!", "Contact number": "5571933334444", "Contact Email": "candidato3@email.com", "Message": "Lembrete: sua prova é amanhã.", "Error Status": "-" },
+          { "Campaign": "Resultados Medicina", "Sector": "Comercial", "Sent": "true", "Read": "Yes", "Send date": "Mon Apr 27 2026 10:00:00", "Template": "aviso_aprovado_med", "Answer": "Passeiiii!!!", "Contact number": "5571933335555", "Contact Email": "candidato4@email.com", "Message": "Parabéns, você foi aprovado!", "Error Status": "NA" },
+          { "Campaign": "Matrículas Abertas", "Sector": "Comercial", "Sent": "true", "Read": "Yes", "Send date": "Wed Apr 29 2026 14:00:00", "Template": "convite_matricula_aprovados", "Answer": "Quais os documentos necessários para a matrícula?", "Contact number": "5571977776666", "Contact Email": "candidato5@email.com", "Message": "Acesse o portal para realizar sua matrícula.", "Error Status": "NA" }
         ];
 
         function App() {
@@ -69,10 +72,12 @@
           const [isDemo, setIsDemo] = useState(true);
           const [libsLoaded, setLibsLoaded] = useState(false);
 
+          // Estados dos Filtros
           const [selectedCampaigns, setSelectedCampaigns] = useState([]);
           const [selectedTemplates, setSelectedTemplates] = useState([]);
           const [selectedSectors, setSelectedSectors] = useState([]);
           const [selectedDates, setSelectedDates] = useState([]);
+          const [searchText, setSearchText] = useState("");
 
           // Verifica se ambas as bibliotecas externas carregaram
           useEffect(() => {
@@ -99,13 +104,11 @@
             setFileName(files.length > 1 ? `${files.length} ficheiros processados` : files[0].name);
             
             try {
-              // Promise.all permite processar todos os ficheiros selecionados de forma paralela
               const allDataPromises = files.map(file => {
                 return new Promise((resolve, reject) => {
                   const extension = file.name.split('.').pop().toLowerCase();
 
                   if (extension === 'csv') {
-                    // Processa CSV
                     window.Papa.parse(file, {
                       header: true,
                       skipEmptyLines: true,
@@ -113,15 +116,13 @@
                       error: (err) => reject(err)
                     });
                   } else if (extension === 'xlsx' || extension === 'xls') {
-                    // Processa Excel usando FileReader e SheetJS
                     const reader = new FileReader();
                     reader.onload = (e) => {
                       try {
                         const dataBuffer = new Uint8Array(e.target.result);
                         const workbook = window.XLSX.read(dataBuffer, { type: 'array' });
-                        const firstSheetName = workbook.SheetNames[0]; // Pega a primeira aba
+                        const firstSheetName = workbook.SheetNames[0];
                         const worksheet = workbook.Sheets[firstSheetName];
-                        // Converte a aba para o formato de array JSON
                         const json = window.XLSX.utils.sheet_to_json(worksheet, { defval: "" });
                         resolve(json);
                       } catch (err) {
@@ -131,18 +132,14 @@
                     reader.onerror = (err) => reject(err);
                     reader.readAsArrayBuffer(file);
                   } else {
-                    resolve([]); // Ignora ficheiros não suportados
+                    resolve([]);
                   }
                 });
               });
 
-              // Aguarda o processamento de todas as planilhas selecionadas
               const resultsArrays = await Promise.all(allDataPromises);
-              
-              // Junta todas as linhas de todas as planilhas numa tabela gigante (flat)
               const combinedData = resultsArrays.flat();
 
-              // Filtra linhas nulas/inválidas
               const validData = combinedData.filter(row => row['Send date'] || row['Template']);
               
               if (validData.length === 0) {
@@ -159,7 +156,7 @@
               alert("Ocorreu um erro ao processar os dados. Verifique o formato do ficheiro.");
             } finally {
               setIsLoading(false);
-              event.target.value = ''; // Reseta o input para permitir subir os mesmos ficheiros novamente
+              event.target.value = '';
             }
           };
 
@@ -212,9 +209,30 @@
               if (selectedSectors.length > 0 && !selectedSectors.includes(sec)) return false;
               if (selectedDates.length > 0 && !selectedDates.includes(isoDate)) return false;
 
+              // Filtro de Texto Livre (incluindo Error Status)
+              if (searchText.trim() !== "") {
+                const query = searchText.toLowerCase();
+                const searchableFields = [
+                  row['Message'],
+                  row['Answer'],
+                  row['Contact number'],
+                  row['Contact Email'],
+                  row['Error Status'],
+                  camp,
+                  tpl,
+                  sec
+                ];
+                
+                const matchesSearch = searchableFields.some(field => 
+                  field && String(field).toLowerCase().includes(query)
+                );
+                
+                if (!matchesSearch) return false;
+              }
+
               return true;
             });
-          }, [data, selectedCampaigns, selectedTemplates, selectedSectors, selectedDates]);
+          }, [data, selectedCampaigns, selectedTemplates, selectedSectors, selectedDates, searchText]);
 
           const metrics = useMemo(() => {
             if (!filteredData || filteredData.length === 0) return null;
@@ -222,6 +240,7 @@
             let totalSent = 0;
             let totalRead = 0;
             let totalAnswered = 0;
+            let totalErrors = 0;
             
             const campaignCount = {};
             const templateCount = {};
@@ -232,8 +251,17 @@
             filteredData.forEach(row => {
               const sentVal = row['Sent']?.toString().toLowerCase();
               const isSent = sentVal === 'true' || sentVal === 'yes' || sentVal === 'sim';
-              if (!isSent) return;
+              
+              const errorStatus = row['Error Status'];
+              const hasErrorText = errorStatus && errorStatus !== 'NA' && errorStatus !== '-' && errorStatus.trim() !== '';
 
+              // Se não foi enviado (Sent: false) ou se tem uma mensagem de erro na coluna, é uma Falha
+              if (!isSent || hasErrorText) {
+                totalErrors++;
+                return; // Pula a contagem de sucesso, leitura e funil para este contacto
+              }
+
+              // Se passou pela validação de erro, foi Enviado com Sucesso
               totalSent++;
 
               const readVal = row['Read']?.toString().toLowerCase();
@@ -280,7 +308,6 @@
             const topCampaigns = Object.entries(campaignCount).sort((a, b) => b[1] - a[1]);
             const topTemplates = Object.entries(templateCount).sort((a, b) => b[1] - a[1]);
             
-            // Lógica Corrigida: Preencher buracos de datas para manter a continuidade temporal
             let timeline = [];
             const isoDates = Object.keys(dateCount);
             if (isoDates.length > 0) {
@@ -292,28 +319,30 @@
               const maxTime = Math.max(...timestamps);
               const daysDiff = (maxTime - minTime) / (1000 * 60 * 60 * 24);
 
-              // Só preenche se a diferença for razoável (até 90 dias) para não estourar a memória
               if (daysDiff > 0 && daysDiff <= 90) { 
                 for (let t = minTime; t <= maxTime; t += 1000 * 60 * 60 * 24) {
                   const iso = new Date(t).toISOString().split('T')[0];
                   timeline.push([iso, dateCount[iso] || 0]);
                 }
               } else {
-                // Se for mais de 90 dias, mostra apenas os dias que têm envio
                 timeline = Object.entries(dateCount).sort((a, b) => a[0].localeCompare(b[0]));
               }
             }
             
             recentAnswers.reverse();
 
+            const totalAttempts = totalSent + totalErrors;
+            const errorRateNum = totalAttempts > 0 ? (totalErrors / totalAttempts) * 100 : 0;
             const readRateNum = totalSent > 0 ? (totalRead / totalSent) * 100 : 0;
             const answerRateNum = totalSent > 0 ? (totalAnswered / totalSent) * 100 : 0;
 
             return {
               totalRows: filteredData.length,
               totalSent,
+              totalErrors,
               totalRead,
               totalAnswered,
+              errorRate: errorRateNum.toFixed(1),
               readRate: readRateNum.toFixed(1),
               answerRate: answerRateNum.toFixed(1),
               topCampaigns: topCampaigns.slice(0, 5),
@@ -329,6 +358,7 @@
             setSelectedTemplates([]);
             setSelectedSectors([]);
             setSelectedDates([]);
+            setSearchText("");
           };
 
           return (
@@ -384,13 +414,27 @@
                       <Icons.Filter size={18} className="text-slate-400" />
                       <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Filtros Avançados</h2>
                     </div>
-                    {(selectedCampaigns.length > 0 || selectedTemplates.length > 0 || selectedSectors.length > 0 || selectedDates.length > 0) && (
+                    {(selectedCampaigns.length > 0 || selectedTemplates.length > 0 || selectedSectors.length > 0 || selectedDates.length > 0 || searchText.trim() !== '') && (
                       <button onClick={handleClearFilters} className="text-xs font-medium text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors">
                         Limpar Todos
                       </button>
                     )}
                   </div>
                   
+                  {/* BARRA DE PESQUISA POR TEXTO */}
+                  <div className="mb-4 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Icons.Search size={18} className="text-slate-400" />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Pesquisar por número, email, erro, mensagem ou resposta..."
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                    />
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <MultiSelect label="Setores" options={filterOptions.sectors} selected={selectedSectors} onChange={setSelectedSectors} placeholder="Todos os setores" />
                     <MultiSelect label="Campanhas" options={filterOptions.campaigns} selected={selectedCampaigns} onChange={setSelectedCampaigns} placeholder="Todas as campanhas" />
@@ -403,9 +447,9 @@
                   <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-100 text-center">
                     <Icons.AlertCircle size={48} className="mx-auto text-slate-300 mb-3" />
                     <h3 className="text-lg font-medium text-slate-700">Nenhum dado encontrado</h3>
-                    <p className="text-slate-500 mt-1">A combinação de filtros selecionada não retornou nenhum disparo.</p>
+                    <p className="text-slate-500 mt-1">A pesquisa ou a combinação de filtros não retornou nenhum disparo.</p>
                     <button onClick={handleClearFilters} className="mt-6 px-5 py-2.5 bg-emerald-100 text-emerald-700 rounded-xl text-sm font-semibold hover:bg-emerald-200 transition-colors">
-                      Limpar Filtros
+                      Limpar Filtros e Pesquisa
                     </button>
                   </div>
                 ) : (
@@ -416,7 +460,7 @@
                           <Icons.BarChartHorizontal size={22} className="text-emerald-500" />
                           <div>
                             <h2 className="text-lg font-semibold text-slate-800">Funil Lógico de Captação & Conversão</h2>
-                            <p className="text-xs text-slate-500 mt-0.5">Categorização baseada no comportamento e campanhas de envio</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Categorização baseada no comportamento e campanhas de envio (apenas envios com sucesso)</p>
                           </div>
                         </div>
                       </div>
@@ -429,11 +473,12 @@
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                      <StatCard title="Total Enviado" value={metrics.totalSent.toLocaleString('pt-PT')} icon={<Icons.Smartphone className="text-blue-500" />} bgColor="bg-blue-50" subtitle="Contactos impactados" />
-                      <StatCard title="Mensagens Lidas" value={metrics.totalRead.toLocaleString('pt-PT')} icon={<Icons.CheckCheck className="text-emerald-500" />} bgColor="bg-emerald-50" subtitle={`${metrics.readRate}% do volume filtrado`} />
-                      <StatCard title="Respostas" value={metrics.totalAnswered.toLocaleString('pt-PT')} icon={<Icons.MessageSquareReply className="text-orange-500" />} bgColor="bg-orange-50" subtitle={`${metrics.answerRate}% de interação direta`} />
-                      <StatCard title="Campanhas no Filtro" value={metrics.topCampaigns.length} icon={<Icons.Megaphone className="text-purple-500" />} bgColor="bg-purple-50" subtitle="Tipos de ações" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                      <StatCard title="Enviados (Sucesso)" value={metrics.totalSent.toLocaleString('pt-PT')} icon={<Icons.Smartphone className="text-blue-500" />} bgColor="bg-blue-50" subtitle="Com sucesso" />
+                      <StatCard title="Falhas (Erros)" value={metrics.totalErrors.toLocaleString('pt-PT')} icon={<Icons.XCircle className="text-red-500" />} bgColor="bg-red-50" subtitle={`${metrics.errorRate}% de erro`} />
+                      <StatCard title="Lidas" value={metrics.totalRead.toLocaleString('pt-PT')} icon={<Icons.CheckCheck className="text-emerald-500" />} bgColor="bg-emerald-50" subtitle={`${metrics.readRate}% do enviado`} />
+                      <StatCard title="Respostas" value={metrics.totalAnswered.toLocaleString('pt-PT')} icon={<Icons.MessageSquareReply className="text-orange-500" />} bgColor="bg-orange-50" subtitle={`${metrics.answerRate}% de interação`} />
+                      <StatCard title="Campanhas Ativas" value={metrics.topCampaigns.length} icon={<Icons.Megaphone className="text-purple-500" />} bgColor="bg-purple-50" subtitle="Nos filtros" />
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
