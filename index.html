@@ -77,7 +77,6 @@
           const [selectedTemplates, setSelectedTemplates] = useState([]);
           const [selectedSectors, setSelectedSectors] = useState([]);
           const [selectedDates, setSelectedDates] = useState([]);
-          const [searchText, setSearchText] = useState("");
 
           // Verifica se ambas as bibliotecas externas carregaram
           useEffect(() => {
@@ -209,30 +208,9 @@
               if (selectedSectors.length > 0 && !selectedSectors.includes(sec)) return false;
               if (selectedDates.length > 0 && !selectedDates.includes(isoDate)) return false;
 
-              // Filtro de Texto Livre (incluindo Error Status)
-              if (searchText.trim() !== "") {
-                const query = searchText.toLowerCase();
-                const searchableFields = [
-                  row['Message'],
-                  row['Answer'],
-                  row['Contact number'],
-                  row['Contact Email'],
-                  row['Error Status'],
-                  camp,
-                  tpl,
-                  sec
-                ];
-                
-                const matchesSearch = searchableFields.some(field => 
-                  field && String(field).toLowerCase().includes(query)
-                );
-                
-                if (!matchesSearch) return false;
-              }
-
               return true;
             });
-          }, [data, selectedCampaigns, selectedTemplates, selectedSectors, selectedDates, searchText]);
+          }, [data, selectedCampaigns, selectedTemplates, selectedSectors, selectedDates]);
 
           const metrics = useMemo(() => {
             if (!filteredData || filteredData.length === 0) return null;
@@ -358,7 +336,6 @@
             setSelectedTemplates([]);
             setSelectedSectors([]);
             setSelectedDates([]);
-            setSearchText("");
           };
 
           return (
@@ -414,25 +391,11 @@
                       <Icons.Filter size={18} className="text-slate-400" />
                       <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Filtros Avançados</h2>
                     </div>
-                    {(selectedCampaigns.length > 0 || selectedTemplates.length > 0 || selectedSectors.length > 0 || selectedDates.length > 0 || searchText.trim() !== '') && (
+                    {(selectedCampaigns.length > 0 || selectedTemplates.length > 0 || selectedSectors.length > 0 || selectedDates.length > 0) && (
                       <button onClick={handleClearFilters} className="text-xs font-medium text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors">
                         Limpar Todos
                       </button>
                     )}
-                  </div>
-                  
-                  {/* BARRA DE PESQUISA POR TEXTO */}
-                  <div className="mb-4 relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Icons.Search size={18} className="text-slate-400" />
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Pesquisar por número, email, erro, mensagem ou resposta..."
-                      value={searchText}
-                      onChange={(e) => setSearchText(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                    />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -447,9 +410,9 @@
                   <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-100 text-center">
                     <Icons.AlertCircle size={48} className="mx-auto text-slate-300 mb-3" />
                     <h3 className="text-lg font-medium text-slate-700">Nenhum dado encontrado</h3>
-                    <p className="text-slate-500 mt-1">A pesquisa ou a combinação de filtros não retornou nenhum disparo.</p>
+                    <p className="text-slate-500 mt-1">A combinação de filtros selecionada não retornou nenhum disparo.</p>
                     <button onClick={handleClearFilters} className="mt-6 px-5 py-2.5 bg-emerald-100 text-emerald-700 rounded-xl text-sm font-semibold hover:bg-emerald-200 transition-colors">
-                      Limpar Filtros e Pesquisa
+                      Limpar Filtros
                     </button>
                   </div>
                 ) : (
@@ -548,6 +511,20 @@
 
         const MultiSelect = ({ label, options, selected, onChange, placeholder }) => {
           const [isOpen, setIsOpen] = useState(false);
+          const [searchTerm, setSearchTerm] = useState("");
+
+          useEffect(() => {
+            if (!isOpen) setSearchTerm("");
+          }, [isOpen]);
+
+          const filteredOptions = useMemo(() => {
+            if (!searchTerm) return options;
+            const lowerSearch = searchTerm.toLowerCase();
+            return options.filter(opt => {
+              const display = typeof opt === 'object' ? opt.label : opt;
+              return String(display).toLowerCase().includes(lowerSearch);
+            });
+          }, [options, searchTerm]);
 
           const toggleOption = (optionValue) => {
             if (selected.includes(optionValue)) {
@@ -559,11 +536,22 @@
 
           const handleSelectAll = (e) => {
             if (e.target.checked) {
-              onChange(options.map(o => typeof o === 'object' ? o.val : o));
+              const newSelected = [...selected];
+              filteredOptions.forEach(opt => {
+                  const val = typeof opt === 'object' ? opt.val : opt;
+                  if (!newSelected.includes(val)) newSelected.push(val);
+              });
+              onChange(newSelected);
             } else {
-              onChange([]);
+              const filteredVals = filteredOptions.map(opt => typeof opt === 'object' ? opt.val : opt);
+              onChange(selected.filter(v => !filteredVals.includes(v)));
             }
           };
+
+          const allFilteredSelected = filteredOptions.length > 0 && filteredOptions.every(opt => {
+            const val = typeof opt === 'object' ? opt.val : opt;
+            return selected.includes(val);
+          });
 
           const getDisplayText = () => {
             if (selected.length === 0) return placeholder;
@@ -590,24 +578,47 @@
               {isOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}></div>
-                  <div className="absolute top-full left-0 z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar">
-                    <div className="p-3 border-b border-slate-100 sticky top-0 bg-white/95 backdrop-blur-sm z-10">
-                      <label className="flex items-center gap-2 text-sm cursor-pointer font-semibold text-emerald-600">
-                        <input type="checkbox" checked={selected.length === options.length && options.length > 0} onChange={handleSelectAll} className="rounded text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer" />
-                        Selecionar Todos
-                      </label>
+                  <div className="absolute top-full left-0 z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl flex flex-col overflow-hidden">
+                    
+                    {/* Barra de Pesquisa Interna */}
+                    <div className="p-2 border-b border-slate-100 bg-slate-50 z-20">
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                          <Icons.Search size={14} className="text-slate-400" />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Pesquisar..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                        />
+                      </div>
                     </div>
-                    <div className="p-1">
-                      {options.map((opt, i) => {
-                        const val = typeof opt === 'object' ? opt.val : opt;
-                        const display = typeof opt === 'object' ? opt.label : opt;
-                        return (
-                          <label key={i} className="flex items-center gap-2 p-2 hover:bg-slate-50 text-sm cursor-pointer text-slate-700 rounded-lg transition-colors">
-                            <input type="checkbox" checked={selected.includes(val)} onChange={() => toggleOption(val)} className="rounded text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer" />
-                            <span className="truncate" title={display}>{display}</span>
-                          </label>
-                        )
-                      })}
+
+                    <div className="overflow-y-auto custom-scrollbar max-h-60">
+                      <div className="p-3 border-b border-slate-100 sticky top-0 bg-white z-10">
+                        <label className="flex items-center gap-2 text-sm cursor-pointer font-semibold text-emerald-600">
+                          <input type="checkbox" checked={allFilteredSelected} onChange={handleSelectAll} className="rounded text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer" />
+                          Selecionar Todos
+                        </label>
+                      </div>
+                      <div className="p-1">
+                        {filteredOptions.length === 0 ? (
+                          <div className="p-3 text-center text-sm text-slate-400">Nenhum resultado.</div>
+                        ) : (
+                          filteredOptions.map((opt, i) => {
+                            const val = typeof opt === 'object' ? opt.val : opt;
+                            const display = typeof opt === 'object' ? opt.label : opt;
+                            return (
+                              <label key={i} className="flex items-center gap-2 p-2 hover:bg-slate-50 text-sm cursor-pointer text-slate-700 rounded-lg transition-colors">
+                                <input type="checkbox" checked={selected.includes(val)} onChange={() => toggleOption(val)} className="rounded text-emerald-500 focus:ring-emerald-500 w-4 h-4 cursor-pointer" />
+                                <span className="truncate" title={display}>{display}</span>
+                              </label>
+                            )
+                          })
+                        )}
+                      </div>
                     </div>
                   </div>
                 </>
