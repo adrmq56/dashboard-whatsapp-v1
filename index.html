@@ -64,7 +64,7 @@
 
         // --- Dados de Amostra (Fallback) ---
         const mockData = [
-          { "Campaign": "Aguardando Arquivo Fixo", "Sector": "Sistema", "Sent": "true", "Read": "Yes", "Send date": "Tue Apr 07 2026 09:56:07", "Template": "info_sistema", "Answer": "", "Contact number": "000000000", "Contact Email": "sistema@dashboard.com", "Message": "Faça upload do arquivo dados.csv no GitHub para que ele carregue automaticamente.", "Error Status": "NA" }
+          { "Campaign": "Aguardando Arquivo Fixo", "Sector": "Sistema", "Sent": "true", "Read": "Yes", "Send date": "Tue Apr 07 2026 09:56:07", "Template": "info_sistema", "Answer": "", "Contact number": "000000000", "Contact Email": "sistema@dashboard.com", "Message": "Faça upload do arquivo para que ele carregue automaticamente.", "Error Status": "NA" }
         ];
 
         function App() {
@@ -88,49 +88,67 @@
                 setLibsLoaded(true);
                 clearInterval(checkLibs);
 
-                try {
-                  window.Papa.parse('dados.csv', {
-                    download: true, 
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: (results) => {
-                      const normalizedData = normalizeKeys(results.data);
-                      const validData = normalizedData.filter(row => row['Send date'] || row['Template'] || row['Campaign']);
-                      if (validData.length > 0) {
-                        setData(validData);
-                        setIsDemo(false);
-                        setFileName("dados.csv (Base Fixa Atual)");
-                      } else {
-                        setFileName("Nenhum dado padrão encontrado.");
+                fetch('dados.csv')
+                  .then(response => {
+                    if (!response.ok) throw new Error("Arquivo não encontrado.");
+                    return response.text();
+                  })
+                  .then(csvText => {
+                    window.Papa.parse(csvText, {
+                      header: true,
+                      skipEmptyLines: true,
+                      complete: (results) => {
+                        const normalizedData = normalizeKeys(results.data);
+                        const validData = normalizedData.filter(row => row['Send date'] || row['Template'] || row['Campaign'] || row['Contact number']);
+                        if (validData.length > 0) {
+                          setData(validData);
+                          setIsDemo(false);
+                          setFileName("dados.csv (Base Fixa Atual)");
+                        } else {
+                          setFileName("Nenhum dado padrão encontrado.");
+                        }
+                        setIsLoading(false);
+                      },
+                      error: (err) => {
+                        setFileName("Modo de Demonstração");
+                        setIsLoading(false);
                       }
-                      setIsLoading(false);
-                    },
-                    error: (err) => {
-                      console.log("Arquivo dados.csv não encontrado no servidor. Usando dados de fallback.");
-                      setFileName("Modo de Demonstração");
-                      setIsLoading(false);
-                    }
+                    });
+                  })
+                  .catch(err => {
+                    setFileName("Modo de Demonstração");
+                    setIsLoading(false);
                   });
-                } catch (err) {
-                  console.log("Ambiente bloqueou o carregamento automático. Usando dados de fallback.");
-                  setFileName("Modo de Demonstração");
-                  setIsLoading(false);
-                }
               }
             }, 500);
             return () => clearInterval(checkLibs);
           }, []);
 
-          // Função para normalizar dados (evita travamentos com arquivos Excel .xlsx)
+          // TRADUTOR UNIVERSAL DE COLUNAS (O SEGREDO PARA NÃO TRAVAR)
           const normalizeKeys = (dataArray) => {
+            const keyMap = {
+              'campaign': 'Campaign', 'campanha': 'Campaign', 'spread campaign name': 'Campaign', 'nome da campanha': 'Campaign',
+              'sector': 'Sector', 'setor': 'Sector', 'pipeline': 'Sector',
+              'sent': 'Sent', 'enviado': 'Sent', 'status de envio': 'Sent',
+              'read': 'Read', 'lida': 'Read', 'readed': 'Read', 'lido': 'Read', 'status da mensagem': 'Read',
+              'send date': 'Send date', 'data de envio': 'Send date', 'data de criação': 'Send date', 'data de criacao': 'Send date', 'createdate': 'Send date', 'create date': 'Send date', 'data': 'Send date',
+              'template': 'Template', 'nome do template': 'Template', 'conversa ativa - template': 'Template',
+              'answer': 'Answer', 'resposta': 'Answer', 'answered': 'Answer', 'respondido': 'Answer', 'corpo da atividade': 'Answer', 'descrição do ticket': 'Answer',
+              'contact number': 'Contact number', 'numero do contato': 'Contact number', 'número': 'Contact number', 'telefone': 'Contact number', 'celular': 'Contact number', 'whatsapp': 'Contact number',
+              'error status': 'Error Status', 'erro de disparo': 'Error Status', 'erro': 'Error Status', 'motivo do erro': 'Error Status'
+            };
+
             return dataArray.map(row => {
-              const newRow = {};
+              const newRow = { 'Campaign': 'Sem Campanha', 'Template': 'Desconhecido' }; // Valores Padrão
               for (let key in row) {
                 let val = row[key];
-                const cleanKey = key.trim();
+                const cleanKey = String(key).trim();
+                const lowerKey = cleanKey.toLowerCase();
+                
+                const standardKey = keyMap[lowerKey] || cleanKey;
                 
                 // Converte datas numéricas do Excel para o formato legível
-                if (typeof val === 'number' && (cleanKey.toLowerCase().includes('date') || cleanKey.toLowerCase().includes('data'))) {
+                if (typeof val === 'number' && (lowerKey.includes('date') || lowerKey.includes('data'))) {
                   if (val > 20000 && val < 60000) {
                     const jsDate = new Date(Math.round((val - 25569) * 86400 * 1000));
                     val = jsDate.toISOString().replace('T', ' ').substring(0, 19);
@@ -138,12 +156,12 @@
                     val = String(val);
                   }
                 } else if (val !== null && val !== undefined) {
-                  val = String(val); // Garante que tudo seja texto para evitar travamentos
+                  val = String(val); // Garante que tudo seja texto
                 } else {
                   val = "";
                 }
                 
-                newRow[cleanKey] = val;
+                newRow[standardKey] = val;
               }
               return newRow;
             });
@@ -199,10 +217,11 @@
               const resultsArrays = await Promise.all(allDataPromises);
               const combinedData = resultsArrays.flat();
 
-              const validData = combinedData.filter(row => row['Send date'] || row['Template'] || row['Campaign']);
+              // Filtro mais tolerante para não rejeitar a planilha
+              const validData = combinedData.filter(row => row['Send date'] || row['Template'] || row['Campaign'] || row['Contact number']);
               
               if (validData.length === 0) {
-                  alert("Não foi possível encontrar dados válidos nestes arquivos.");
+                  alert("Não foi possível encontrar colunas reconhecíveis no seu arquivo (ex: Data de Criação, Campanha, Template).");
                   setIsLoading(false);
                   return;
               }
@@ -212,7 +231,7 @@
               handleClearFilters();
             } catch (error) {
               console.error(error);
-              alert("Ocorreu um erro ao processar os dados. Verifique o formato do arquivo.");
+              alert("Ocorreu um erro ao processar os dados. Verifique se o formato do arquivo é válido.");
             } finally {
               setIsLoading(false);
               event.target.value = '';
@@ -221,18 +240,16 @@
 
           const getSortableDate = (dateStr) => {
             if (!dateStr) return null;
-            let d = new Date(dateStr);
-            if (isNaN(d.getTime())) {
-              // Verifica se a data veio no padrão brasileiro (DD/MM/AAAA)
-              const str = String(dateStr).trim();
-              const dateMatch = str.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
-              if (dateMatch) {
-                 const day = dateMatch[1];
-                 const month = dateMatch[2];
-                 const year = dateMatch[3];
-                 d = new Date(`${year}-${month}-${day}T12:00:00Z`);
-              }
+            let str = String(dateStr).trim();
+            let isoFormat = str;
+            
+            // Verifica padrão BR (DD/MM/YYYY)
+            const brDateMatch = str.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+            if (brDateMatch) {
+               isoFormat = `${brDateMatch[3]}-${brDateMatch[2]}-${brDateMatch[1]}T12:00:00Z`;
             }
+            
+            let d = new Date(isoFormat);
             if (isNaN(d.getTime())) return null;
             return d.toISOString().split('T')[0];
           };
@@ -251,7 +268,7 @@
             const dates = new Set();
 
             data.forEach(row => {
-              campaigns.add(row['Campaign'] === 'NA' || !row['Campaign'] ? 'Sem Campanha' : row['Campaign']);
+              campaigns.add(row['Campaign'] || 'Sem Campanha');
               templates.add(row['Template'] || 'Desconhecido');
               sectors.add(row['Sector'] === 'NA' || !row['Sector'] ? 'Sem Setor' : row['Sector']);
               
@@ -269,7 +286,7 @@
 
           const filteredData = useMemo(() => {
             return data.filter(row => {
-              const camp = row['Campaign'] === 'NA' || !row['Campaign'] ? 'Sem Campanha' : row['Campaign'];
+              const camp = row['Campaign'] || 'Sem Campanha';
               const tpl = row['Template'] || 'Desconhecido';
               const sec = row['Sector'] === 'NA' || !row['Sector'] ? 'Sem Setor' : row['Sector'];
               const isoDate = getSortableDate(row['Send date']);
@@ -296,7 +313,6 @@
             const dateCount = {};
             const recentAnswers = [];
 
-            // Variáveis para Insights Inteligentes
             const daysOfWeek = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
             const dayStats = Array(7).fill(0).map(() => ({ sent: 0, read: 0, answered: 0 }));
             const hourStats = Array(24).fill(0).map(() => ({ sent: 0, read: 0, answered: 0 }));
@@ -310,14 +326,18 @@
 
             filteredData.forEach(row => {
               const sentVal = row['Sent']?.toString().toLowerCase();
-              const isSent = sentVal === 'true' || sentVal === 'yes' || sentVal === 'sim';
-              
               const errorStatus = row['Error Status'];
               const hasErrorText = errorStatus && errorStatus !== 'NA' && errorStatus !== '-' && errorStatus.trim() !== '';
 
+              // Avaliação Inteligente de Envio (Assume como enviado a não ser que tenha falha clara)
+              let isSent = true;
+              if (sentVal === 'false' || sentVal === 'no' || sentVal === 'não' || sentVal === 'nao' || sentVal === 'falha' || hasErrorText) {
+                 isSent = false;
+              }
+
               if (!isSent || hasErrorText) {
                 totalErrors++;
-                const errName = errorStatus || 'Falha Desconhecida';
+                const errName = errorStatus || 'Falha na Entrega';
                 errorCount[errName] = (errorCount[errName] || 0) + 1;
                 return; 
               }
@@ -325,34 +345,33 @@
               totalSent++;
 
               const readVal = row['Read']?.toString().toLowerCase();
-              const isRead = readVal === 'yes' || readVal === 'sim';
+              const isRead = readVal === 'yes' || readVal === 'sim' || readVal === 'true' || readVal === 'lido' || readVal === 'lida';
               if (isRead) totalRead++;
 
-              const answer = row['Answer'];
-              const hasAnswer = answer && answer !== 'NA' && answer !== '-' && answer.trim() !== '';
+              const answerText = row['Answer']?.toString().trim();
+              const hasAnswer = answerText && answerText !== 'NA' && answerText !== '-' && answerText.toLowerCase() !== 'não' && answerText.toLowerCase() !== 'nao';
+              
               if (hasAnswer) {
                 totalAnswered++;
-                if (recentAnswers.length < 30) {
+                if (recentAnswers.length < 30 && answerText.toLowerCase() !== 'sim' && answerText.toLowerCase() !== 'yes' && answerText.toLowerCase() !== 'true') {
                   recentAnswers.push({
-                    date: row['Send date'] ? row['Send date'].substring(0, 15) : 'Data Indisponível',
-                    campaign: row['Campaign'] === 'NA' || !row['Campaign'] ? 'Sem Campanha' : row['Campaign'],
+                    date: row['Send date'] ? String(row['Send date']).substring(0, 15) : 'Data Indisponível',
+                    campaign: row['Campaign'] || 'Sem Campanha',
                     template: row['Template'] || 'Desconhecido',
-                    text: answer,
+                    text: answerText,
                     number: row['Contact number']
                   });
+                  
+                  const words = answerText.toLowerCase().replace(/[^\w\sà-ú]/g, '').split(/\s+/);
+                  words.forEach(w => {
+                    if (w.length > 2 && !stopWords.includes(w)) {
+                      wordCount[w] = (wordCount[w] || 0) + 1;
+                    }
+                  });
                 }
-                
-                // Contagem de Palavras para Nuvem de Assuntos
-                const words = answer.toLowerCase().replace(/[^\w\sà-ú]/g, '').split(/\s+/);
-                words.forEach(w => {
-                  if (w.length > 2 && !stopWords.includes(w)) {
-                    wordCount[w] = (wordCount[w] || 0) + 1;
-                  }
-                });
               }
 
-              // Extração de DDD para Mapa de Engajamento
-              let phone = row['Contact number'] ? row['Contact number'].toString().replace(/\D/g, '') : '';
+              let phone = row['Contact number'] ? String(row['Contact number']).replace(/\D/g, '') : '';
               let ddd = '';
               if (phone.startsWith('55') && phone.length >= 12) {
                 ddd = phone.substring(2, 4);
@@ -361,14 +380,12 @@
               }
               if (ddd) dddCount[ddd] = (dddCount[ddd] || 0) + 1;
 
-              // Preenchendo dados para os Insights Temporais
               const rawDate = row['Send date'];
               if (rawDate) {
-                 // Usa nossa função segura para converter a data
-                 let dStr = rawDate;
-                 if (String(rawDate).match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/)) {
-                     const parts = String(rawDate).match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
-                     dStr = `${parts[3]}-${parts[2]}-${parts[1]}T12:00:00Z`;
+                 let dStr = String(rawDate).trim();
+                 const brMatch = dStr.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+                 if (brMatch) {
+                     dStr = `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}T12:00:00Z`;
                  }
                  const d = new Date(dStr);
                  if (!isNaN(d.getTime())) {
@@ -389,18 +406,16 @@
                  }
               }
 
-              const camp = row['Campaign'] === 'NA' || !row['Campaign'] ? 'Sem Campanha' : row['Campaign'];
+              const camp = row['Campaign'] || 'Sem Campanha';
               campaignCount[camp] = (campaignCount[camp] || 0) + 1;
 
               const tpl = row['Template'] || 'Desconhecido';
               templateCount[tpl] = (templateCount[tpl] || 0) + 1;
 
-              // Preenchendo dados para Insight de Templates
               if (!templateStats[tpl]) templateStats[tpl] = { sent: 0, answered: 0 };
               templateStats[tpl].sent++;
               if (hasAnswer) templateStats[tpl].answered++;
 
-              // Preenchendo dados para Rejeição (Vácuo)
               if (!templateRejection[tpl]) templateRejection[tpl] = { read: 0, answered: 0 };
               if (isRead) templateRejection[tpl].read++;
               if (hasAnswer) templateRejection[tpl].answered++;
@@ -412,17 +427,15 @@
             });
 
             // Processando Resultados dos Insights
-            let bestDay = { name: '-', rate: 0, sent: 0 };
-            dayStats.forEach((stat, idx) => {
-                const rate = stat.sent > 10 ? (stat.answered / stat.sent) * 100 : 0; 
-                if (rate > bestDay.rate) bestDay = { name: daysOfWeek[idx], rate, sent: stat.sent };
-            });
+            const dayRanking = dayStats.map((stat, idx) => {
+                return { name: daysOfWeek[idx], rate: stat.sent > 10 ? (stat.answered / stat.sent) * 100 : 0, sent: stat.sent };
+            }).sort((a, b) => b.rate - a.rate).filter(d => d.sent > 10).slice(0, 3);
+            if (dayRanking.length === 0) dayRanking.push({ name: '-', rate: 0, sent: 0 });
 
-            let bestHour = { name: '-', rate: 0, sent: 0 };
-            hourStats.forEach((stat, idx) => {
-                const rate = stat.sent > 10 ? (stat.read / stat.sent) * 100 : 0; 
-                if (rate > bestHour.rate) bestHour = { name: `${idx}h às ${idx+1}h`, rate, sent: stat.sent };
-            });
+            const hourRanking = hourStats.map((stat, idx) => {
+                return { name: `${idx}h às ${idx+1}h`, rate: stat.sent > 10 ? (stat.read / stat.sent) * 100 : 0, sent: stat.sent };
+            }).sort((a, b) => b.rate - a.rate).filter(h => h.sent > 10).slice(0, 3);
+            if (hourRanking.length === 0) hourRanking.push({ name: '-', rate: 0, sent: 0 });
 
             let bestTemplate = { name: '-', rate: 0, sent: 0 };
             Object.entries(templateStats).forEach(([name, stat]) => {
@@ -440,7 +453,7 @@
 
             let worstTemplate = { name: '-', rate: 0, read: 0 };
             Object.entries(templateRejection).forEach(([name, stat]) => {
-              if (stat.read > 5) { // Precisa de pelo menos 5 leituras
+              if (stat.read > 5) {
                 const rate = ((stat.read - stat.answered) / stat.read) * 100;
                 if (rate > worstTemplate.rate) worstTemplate = { name, rate, read: stat.read };
               }
@@ -491,8 +504,8 @@
               timeline,
               recentAnswers,
               insights: {
-                bestDay,
-                bestHour,
+                dayRanking,
+                hourRanking,
                 bestTemplate,
                 topDdd,
                 topError,
@@ -586,7 +599,7 @@
                   <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-100 text-center">
                     <Icons.AlertCircle size={48} className="mx-auto text-slate-300 mb-3" />
                     <h3 className="text-lg font-medium text-slate-700">Nenhum dado encontrado</h3>
-                    <p className="text-slate-500 mt-1">A combinação de filtros selecionada não retornou nenhum disparo.</p>
+                    <p className="text-slate-500 mt-1">Verifique se o ficheiro tem colunas de Campanha, Template ou Data.</p>
                     <button onClick={handleClearFilters} className="mt-6 px-5 py-2.5 bg-emerald-100 text-emerald-700 rounded-xl text-sm font-semibold hover:bg-emerald-200 transition-colors">
                       Limpar Filtros
                     </button>
@@ -610,30 +623,36 @@
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         {/* Insight 1: Melhor Dia */}
-                        <div className="bg-gradient-to-br from-indigo-50 to-white p-5 rounded-2xl shadow-sm border border-indigo-100">
+                        <div className="bg-gradient-to-br from-indigo-50 to-white p-5 rounded-2xl shadow-sm border border-indigo-100 flex flex-col">
                           <div className="flex items-center gap-2 mb-2 text-indigo-600">
                             <Icons.CalendarStar size={18} />
-                            <h3 className="text-sm font-semibold uppercase tracking-wide">Dia Campeão</h3>
+                            <h3 className="text-sm font-semibold uppercase tracking-wide">Top 3 Dias</h3>
                           </div>
-                          <p className="text-slate-500 text-xs mb-1">Maior % de respostas</p>
-                          <div className="text-2xl font-bold text-slate-800 mb-1">{metrics.insights.bestDay.name}</div>
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-indigo-600 font-bold bg-indigo-100 px-2 py-0.5 rounded text-sm">{metrics.insights.bestDay.rate.toFixed(1)}%</span>
-                            <span className="text-xs text-slate-400">conversão</span>
+                          <p className="text-slate-500 text-xs mb-3">Maior taxa de respostas</p>
+                          <div className="flex-grow space-y-2">
+                            {metrics.insights.dayRanking.map((day, i) => (
+                              <div key={i} className="flex justify-between items-center text-sm">
+                                <span className="font-semibold text-slate-700 truncate mr-2">{i+1}º {day.name}</span>
+                                <span className="text-indigo-600 font-bold bg-indigo-100 px-2 py-0.5 rounded text-xs shrink-0">{day.rate.toFixed(1)}%</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
 
                         {/* Insight 2: Melhor Horário */}
-                        <div className="bg-gradient-to-br from-sky-50 to-white p-5 rounded-2xl shadow-sm border border-sky-100">
+                        <div className="bg-gradient-to-br from-sky-50 to-white p-5 rounded-2xl shadow-sm border border-sky-100 flex flex-col">
                           <div className="flex items-center gap-2 mb-2 text-sky-600">
                             <Icons.Clock size={18} />
-                            <h3 className="text-sm font-semibold uppercase tracking-wide">Pico de Leitura</h3>
+                            <h3 className="text-sm font-semibold uppercase tracking-wide">Top 3 Horários</h3>
                           </div>
-                          <p className="text-slate-500 text-xs mb-1">Horário em que mais abrem a mensagem</p>
-                          <div className="text-2xl font-bold text-slate-800 mb-1">{metrics.insights.bestHour.name}</div>
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-sky-600 font-bold bg-sky-100 px-2 py-0.5 rounded text-sm">{metrics.insights.bestHour.rate.toFixed(1)}%</span>
-                            <span className="text-xs text-slate-400">visualização</span>
+                          <p className="text-slate-500 text-xs mb-3">Maior taxa de visualização</p>
+                          <div className="flex-grow space-y-2">
+                            {metrics.insights.hourRanking.map((hour, i) => (
+                              <div key={i} className="flex justify-between items-center text-sm">
+                                <span className="font-semibold text-slate-700 truncate mr-2">{i+1}º {hour.name}</span>
+                                <span className="text-sky-600 font-bold bg-sky-100 px-2 py-0.5 rounded text-xs shrink-0">{hour.rate.toFixed(1)}%</span>
+                              </div>
+                            ))}
                           </div>
                         </div>
 
