@@ -94,7 +94,8 @@
                     header: true,
                     skipEmptyLines: true,
                     complete: (results) => {
-                      const validData = results.data.filter(row => row['Send date'] || row['Template']);
+                      const normalizedData = normalizeKeys(results.data);
+                      const validData = normalizedData.filter(row => row['Send date'] || row['Template'] || row['Campaign']);
                       if (validData.length > 0) {
                         setData(validData);
                         setIsDemo(false);
@@ -120,6 +121,34 @@
             return () => clearInterval(checkLibs);
           }, []);
 
+          // Função para normalizar dados (evita travamentos com arquivos Excel .xlsx)
+          const normalizeKeys = (dataArray) => {
+            return dataArray.map(row => {
+              const newRow = {};
+              for (let key in row) {
+                let val = row[key];
+                const cleanKey = key.trim();
+                
+                // Converte datas numéricas do Excel para o formato legível
+                if (typeof val === 'number' && (cleanKey.toLowerCase().includes('date') || cleanKey.toLowerCase().includes('data'))) {
+                  if (val > 20000 && val < 60000) {
+                    const jsDate = new Date(Math.round((val - 25569) * 86400 * 1000));
+                    val = jsDate.toISOString().replace('T', ' ').substring(0, 19);
+                  } else {
+                    val = String(val);
+                  }
+                } else if (val !== null && val !== undefined) {
+                  val = String(val); // Garante que tudo seja texto para evitar travamentos
+                } else {
+                  val = "";
+                }
+                
+                newRow[cleanKey] = val;
+              }
+              return newRow;
+            });
+          };
+
           // 2. Processamento Manual
           const handleFileUpload = async (event) => {
             const files = Array.from(event.target.files);
@@ -142,7 +171,7 @@
                     window.Papa.parse(file, {
                       header: true,
                       skipEmptyLines: true,
-                      complete: (results) => resolve(results.data),
+                      complete: (results) => resolve(normalizeKeys(results.data)),
                       error: (err) => reject(err)
                     });
                   } else if (extension === 'xlsx' || extension === 'xls') {
@@ -154,7 +183,7 @@
                         const firstSheetName = workbook.SheetNames[0];
                         const worksheet = workbook.Sheets[firstSheetName];
                         const json = window.XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-                        resolve(json);
+                        resolve(normalizeKeys(json));
                       } catch (err) {
                         reject(err);
                       }
@@ -170,7 +199,7 @@
               const resultsArrays = await Promise.all(allDataPromises);
               const combinedData = resultsArrays.flat();
 
-              const validData = combinedData.filter(row => row['Send date'] || row['Template']);
+              const validData = combinedData.filter(row => row['Send date'] || row['Template'] || row['Campaign']);
               
               if (validData.length === 0) {
                   alert("Não foi possível encontrar dados válidos nestes arquivos.");
@@ -192,7 +221,18 @@
 
           const getSortableDate = (dateStr) => {
             if (!dateStr) return null;
-            const d = new Date(dateStr);
+            let d = new Date(dateStr);
+            if (isNaN(d.getTime())) {
+              // Verifica se a data veio no padrão brasileiro (DD/MM/AAAA)
+              const str = String(dateStr).trim();
+              const dateMatch = str.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+              if (dateMatch) {
+                 const day = dateMatch[1];
+                 const month = dateMatch[2];
+                 const year = dateMatch[3];
+                 d = new Date(`${year}-${month}-${day}T12:00:00Z`);
+              }
+            }
             if (isNaN(d.getTime())) return null;
             return d.toISOString().split('T')[0];
           };
@@ -324,7 +364,13 @@
               // Preenchendo dados para os Insights Temporais
               const rawDate = row['Send date'];
               if (rawDate) {
-                 const d = new Date(rawDate);
+                 // Usa nossa função segura para converter a data
+                 let dStr = rawDate;
+                 if (String(rawDate).match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/)) {
+                     const parts = String(rawDate).match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+                     dStr = `${parts[3]}-${parts[2]}-${parts[1]}T12:00:00Z`;
+                 }
+                 const d = new Date(dStr);
                  if (!isNaN(d.getTime())) {
                     const day = d.getDay();
                     const hour = d.getHours();
@@ -534,7 +580,7 @@
                 {isLoading ? (
                   <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-100 text-center flex flex-col items-center justify-center">
                     <Icons.Loader2 size={48} className="text-emerald-500 mb-4 animate-spin" />
-                    <h3 className="text-lg font-medium text-slate-700">Buscando base de dados fixa...</h3>
+                    <h3 className="text-lg font-medium text-slate-700">A processar a base de dados...</h3>
                   </div>
                 ) : !metrics || metrics.totalRows === 0 ? (
                   <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-100 text-center">
