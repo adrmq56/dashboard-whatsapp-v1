@@ -62,6 +62,9 @@
             Zap: (p) => <Icon {...p} path={<><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></>} />
         };
 
+        // --- Lista de Dias da Semana ---
+        const daysOfWeekList = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+
         // --- Dados de Amostra (Fallback) ---
         const mockData = [
           { "Campaign": "Aguardando Arquivo Fixo", "Sector": "Sistema", "Sent": "true", "Read": "Yes", "Send date": "Tue Apr 07 2026 09:56:07", "Template": "info_sistema", "Answer": "", "Contact number": "000000000", "Contact Email": "sistema@dashboard.com", "Message": "Faça upload do arquivo para que ele carregue automaticamente.", "Error Status": "NA" }
@@ -80,6 +83,8 @@
           const [selectedTemplates, setSelectedTemplates] = useState([]);
           const [selectedSectors, setSelectedSectors] = useState([]);
           const [selectedDates, setSelectedDates] = useState([]);
+          const [selectedDaysOfWeek, setSelectedDaysOfWeek] = useState([]);
+          const [selectedHours, setSelectedHours] = useState([]);
 
           // 1. CARREGAMENTO AUTOMÁTICO DO ARQUIVO FIXO (dados.csv)
           useEffect(() => {
@@ -167,6 +172,23 @@
             });
           };
 
+          // Função Auxiliar Robusta para Tratamento de Datas e Horas (Suporta Padrão BR e ISO)
+          const parseDateSafely = (rawDate) => {
+              if (!rawDate) return null;
+              let dStr = String(rawDate).trim();
+              let d = new Date(dStr);
+              
+              // Se for Inválido, tenta parsear o formato brasileiro (DD/MM/AAAA) extraindo horário se houver
+              if (isNaN(d.getTime())) {
+                  const brMatch = dStr.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})(?:\s+(\d{2}:\d{2}(?::\d{2})?))?/);
+                  if (brMatch) {
+                      const timeStr = brMatch[4] ? `T${brMatch[4]}` : 'T12:00:00';
+                      d = new Date(`${brMatch[3]}-${brMatch[2]}-${brMatch[1]}${timeStr}`);
+                  }
+              }
+              return isNaN(d.getTime()) ? null : d;
+          };
+
           // 2. Processamento Manual
           const handleFileUpload = async (event) => {
             const files = Array.from(event.target.files);
@@ -239,19 +261,13 @@
           };
 
           const getSortableDate = (dateStr) => {
-            if (!dateStr) return null;
-            let str = String(dateStr).trim();
-            let isoFormat = str;
-            
-            // Verifica padrão BR (DD/MM/YYYY)
-            const brDateMatch = str.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
-            if (brDateMatch) {
-               isoFormat = `${brDateMatch[3]}-${brDateMatch[2]}-${brDateMatch[1]}T12:00:00Z`;
-            }
-            
-            let d = new Date(isoFormat);
-            if (isNaN(d.getTime())) return null;
-            return d.toISOString().split('T')[0];
+            const d = parseDateSafely(dateStr);
+            if (!d) return null;
+            // Preserva a exibição baseada no fuso horário do usuário para as datas da Timeline
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
           };
 
           const formatDateToDisplay = (isoDate) => {
@@ -266,21 +282,32 @@
             const templates = new Set();
             const sectors = new Set();
             const dates = new Set();
+            const daysOfWeek = new Set();
+            const hours = new Set();
 
             data.forEach(row => {
               campaigns.add(row['Campaign'] || 'Sem Campanha');
               templates.add(row['Template'] || 'Desconhecido');
               sectors.add(row['Sector'] === 'NA' || !row['Sector'] ? 'Sem Setor' : row['Sector']);
               
-              const isoDate = getSortableDate(row['Send date']);
+              const rawDate = row['Send date'];
+              const isoDate = getSortableDate(rawDate);
               if (isoDate) dates.add(isoDate);
+
+              const d = parseDateSafely(rawDate);
+              if (d) {
+                  daysOfWeek.add(d.getDay());
+                  hours.add(d.getHours());
+              }
             });
 
             return {
               campaigns: Array.from(campaigns).sort(),
               templates: Array.from(templates).sort(),
               sectors: Array.from(sectors).sort(),
-              dates: Array.from(dates).sort().map(iso => ({ val: iso, label: formatDateToDisplay(iso) }))
+              dates: Array.from(dates).sort().map(iso => ({ val: iso, label: formatDateToDisplay(iso) })),
+              daysOfWeek: Array.from(daysOfWeek).sort((a,b) => a - b).map(val => ({ val, label: daysOfWeekList[val] })),
+              hours: Array.from(hours).sort((a,b) => a - b).map(val => ({ val, label: `${val}h às ${val+1}h` }))
             };
           }, [data]);
 
@@ -289,16 +316,23 @@
               const camp = row['Campaign'] || 'Sem Campanha';
               const tpl = row['Template'] || 'Desconhecido';
               const sec = row['Sector'] === 'NA' || !row['Sector'] ? 'Sem Setor' : row['Sector'];
-              const isoDate = getSortableDate(row['Send date']);
+              
+              const rawDate = row['Send date'];
+              const isoDate = getSortableDate(rawDate);
+              const parsedD = parseDateSafely(rawDate);
+              const dayOfWeek = parsedD ? parsedD.getDay() : null;
+              const hourOfDay = parsedD ? parsedD.getHours() : null;
 
               if (selectedCampaigns.length > 0 && !selectedCampaigns.includes(camp)) return false;
               if (selectedTemplates.length > 0 && !selectedTemplates.includes(tpl)) return false;
               if (selectedSectors.length > 0 && !selectedSectors.includes(sec)) return false;
               if (selectedDates.length > 0 && !selectedDates.includes(isoDate)) return false;
+              if (selectedDaysOfWeek.length > 0 && !selectedDaysOfWeek.includes(dayOfWeek)) return false;
+              if (selectedHours.length > 0 && !selectedHours.includes(hourOfDay)) return false;
 
               return true;
             });
-          }, [data, selectedCampaigns, selectedTemplates, selectedSectors, selectedDates]);
+          }, [data, selectedCampaigns, selectedTemplates, selectedSectors, selectedDates, selectedDaysOfWeek, selectedHours]);
 
           const metrics = useMemo(() => {
             if (!filteredData || filteredData.length === 0) return null;
@@ -313,7 +347,6 @@
             const dateCount = {};
             const recentAnswers = [];
 
-            const daysOfWeek = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
             const dayStats = Array(7).fill(0).map(() => ({ sent: 0, read: 0, answered: 0 }));
             const hourStats = Array(24).fill(0).map(() => ({ sent: 0, read: 0, answered: 0 }));
             const templateStats = {};
@@ -381,29 +414,22 @@
               if (ddd) dddCount[ddd] = (dddCount[ddd] || 0) + 1;
 
               const rawDate = row['Send date'];
-              if (rawDate) {
-                 let dStr = String(rawDate).trim();
-                 const brMatch = dStr.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
-                 if (brMatch) {
-                     dStr = `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}T12:00:00Z`;
-                 }
-                 const d = new Date(dStr);
-                 if (!isNaN(d.getTime())) {
-                    const day = d.getDay();
-                    const hour = d.getHours();
-                    
-                    dayStats[day].sent++;
-                    hourStats[hour].sent++;
-                    
-                    if (isRead) {
-                      dayStats[day].read++;
-                      hourStats[hour].read++;
-                    }
-                    if (hasAnswer) {
-                      dayStats[day].answered++;
-                      hourStats[hour].answered++;
-                    }
-                 }
+              const d = parseDateSafely(rawDate);
+              if (d) {
+                  const day = d.getDay();
+                  const hour = d.getHours();
+                  
+                  dayStats[day].sent++;
+                  hourStats[hour].sent++;
+                  
+                  if (isRead) {
+                    dayStats[day].read++;
+                    hourStats[hour].read++;
+                  }
+                  if (hasAnswer) {
+                    dayStats[day].answered++;
+                    hourStats[hour].answered++;
+                  }
               }
 
               const camp = row['Campaign'] || 'Sem Campanha';
@@ -428,7 +454,7 @@
 
             // Processando Resultados dos Insights
             const dayRanking = dayStats.map((stat, idx) => {
-                return { name: daysOfWeek[idx], rate: stat.sent > 10 ? (stat.answered / stat.sent) * 100 : 0, sent: stat.sent };
+                return { name: daysOfWeekList[idx], rate: stat.sent > 10 ? (stat.answered / stat.sent) * 100 : 0, sent: stat.sent };
             }).sort((a, b) => b.rate - a.rate).filter(d => d.sent > 10).slice(0, 3);
             if (dayRanking.length === 0) dayRanking.push({ name: '-', rate: 0, sent: 0 });
 
@@ -520,6 +546,8 @@
             setSelectedTemplates([]);
             setSelectedSectors([]);
             setSelectedDates([]);
+            setSelectedDaysOfWeek([]);
+            setSelectedHours([]);
           };
 
           return (
@@ -575,18 +603,20 @@
                       <Icons.Filter size={18} className="text-slate-400" />
                       <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Filtros Avançados</h2>
                     </div>
-                    {(selectedCampaigns.length > 0 || selectedTemplates.length > 0 || selectedSectors.length > 0 || selectedDates.length > 0) && (
+                    {(selectedCampaigns.length > 0 || selectedTemplates.length > 0 || selectedSectors.length > 0 || selectedDates.length > 0 || selectedDaysOfWeek.length > 0 || selectedHours.length > 0) && (
                       <button onClick={handleClearFilters} className="text-xs font-medium text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors">
                         Limpar Todos
                       </button>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     <MultiSelect label="Setores" options={filterOptions.sectors} selected={selectedSectors} onChange={setSelectedSectors} placeholder="Todos os setores" />
                     <MultiSelect label="Campanhas" options={filterOptions.campaigns} selected={selectedCampaigns} onChange={setSelectedCampaigns} placeholder="Todas as campanhas" />
                     <MultiSelect label="Templates" options={filterOptions.templates} selected={selectedTemplates} onChange={setSelectedTemplates} placeholder="Todos os templates" />
-                    <MultiSelect label="Datas de Envio" options={filterOptions.dates} selected={selectedDates} onChange={setSelectedDates} placeholder="Todo o período" />
+                    <MultiSelect label="Dias Específicos" options={filterOptions.dates} selected={selectedDates} onChange={setSelectedDates} placeholder="Todo o período" />
+                    <MultiSelect label="Dias da Semana" options={filterOptions.daysOfWeek} selected={selectedDaysOfWeek} onChange={setSelectedDaysOfWeek} placeholder="Todos os dias" />
+                    <MultiSelect label="Horários" options={filterOptions.hours} selected={selectedHours} onChange={setSelectedHours} placeholder="Todos os horários" />
                   </div>
                 </div>
 
@@ -599,7 +629,7 @@
                   <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-100 text-center">
                     <Icons.AlertCircle size={48} className="mx-auto text-slate-300 mb-3" />
                     <h3 className="text-lg font-medium text-slate-700">Nenhum dado encontrado</h3>
-                    <p className="text-slate-500 mt-1">Verifique se o ficheiro tem colunas de Campanha, Template ou Data.</p>
+                    <p className="text-slate-500 mt-1">Verifique se o ficheiro tem colunas de Campanha, Template ou Data e reavalie os seus filtros.</p>
                     <button onClick={handleClearFilters} className="mt-6 px-5 py-2.5 bg-emerald-100 text-emerald-700 rounded-xl text-sm font-semibold hover:bg-emerald-200 transition-colors">
                       Limpar Filtros
                     </button>
