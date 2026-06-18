@@ -346,6 +346,9 @@
             const templateCount = {};
             const dateCount = {};
             const recentAnswers = [];
+            
+            // NOVO: Set para rastrear contatos únicos que receberam mensagem
+            const uniqueContacts = new Set();
 
             const dayStats = Array(7).fill(0).map(() => ({ sent: 0, read: 0, answered: 0 }));
             const hourStats = Array(24).fill(0).map(() => ({ sent: 0, read: 0, answered: 0 }));
@@ -376,6 +379,10 @@
               }
 
               totalSent++;
+              
+              // NOVO: Guarda o número do contato se a mensagem foi enviada com sucesso
+              let cleanPhoneForSet = row['Contact number'] ? String(row['Contact number']).replace(/\D/g, '') : '';
+              if (cleanPhoneForSet) uniqueContacts.add(cleanPhoneForSet);
 
               const readVal = row['Read']?.toString().toLowerCase();
               const isRead = readVal === 'yes' || readVal === 'sim' || readVal === 'true' || readVal === 'lido' || readVal === 'lida';
@@ -515,6 +522,10 @@
             const errorRateNum = totalAttempts > 0 ? (totalErrors / totalAttempts) * 100 : 0;
             const readRateNum = totalSent > 0 ? (totalRead / totalSent) * 100 : 0;
             const answerRateNum = totalSent > 0 ? (totalAnswered / totalSent) * 100 : 0;
+            
+            // NOVO: Calcula a quantidade de contatos únicos e a média de envios por pessoa
+            const uniqueContactsCount = uniqueContacts.size;
+            const avgMessagesPerContact = uniqueContactsCount > 0 ? (totalSent / uniqueContactsCount).toFixed(1) : 0;
 
             return {
               totalRows: filteredData.length,
@@ -522,6 +533,8 @@
               totalErrors,
               totalRead,
               totalAnswered,
+              uniqueContactsCount,
+              avgMessagesPerContact,
               errorRate: errorRateNum.toFixed(1),
               readRate: readRateNum.toFixed(1),
               answerRate: answerRateNum.toFixed(1),
@@ -636,12 +649,13 @@
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
                       <StatCard title="Enviados (Sucesso)" value={metrics.totalSent.toLocaleString('pt-BR')} icon={<Icons.Smartphone className="text-blue-500" />} bgColor="bg-blue-50" subtitle="Com sucesso" />
-                      <StatCard title="Falhas (Erros)" value={metrics.totalErrors.toLocaleString('pt-BR')} icon={<Icons.XCircle className="text-red-500" />} bgColor="bg-red-50" subtitle={`${metrics.errorRate}% de erro`} />
+                      <StatCard title="Contatos Únicos" value={metrics.uniqueContactsCount.toLocaleString('pt-BR')} icon={<Icons.Users className="text-indigo-500" />} bgColor="bg-indigo-50" subtitle="Pessoas impactadas" />
+                      <StatCard title="Média de Envios" value={metrics.avgMessagesPerContact} icon={<Icons.BarChartHorizontal className="text-violet-500" />} bgColor="bg-violet-50" subtitle="Por contato" />
                       <StatCard title="Lidas" value={metrics.totalRead.toLocaleString('pt-BR')} icon={<Icons.CheckCheck className="text-emerald-500" />} bgColor="bg-emerald-50" subtitle={`${metrics.readRate}% do enviado`} />
                       <StatCard title="Respostas" value={metrics.totalAnswered.toLocaleString('pt-BR')} icon={<Icons.MessageSquareReply className="text-orange-500" />} bgColor="bg-orange-50" subtitle={`${metrics.answerRate}% de interação`} />
-                      <StatCard title="Campanhas Ativas" value={metrics.topCampaigns.length} icon={<Icons.Megaphone className="text-purple-500" />} bgColor="bg-purple-50" subtitle="Nos filtros" />
+                      <StatCard title="Falhas (Erros)" value={metrics.totalErrors.toLocaleString('pt-BR')} icon={<Icons.XCircle className="text-red-500" />} bgColor="bg-red-50" subtitle={`${metrics.errorRate}% de erro`} />
                     </div>
 
                     {/* SEÇÃO: INSIGHTS DE ENGAJAMENTO */}
