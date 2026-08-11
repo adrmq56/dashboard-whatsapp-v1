@@ -5,14 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard de Disparos WhatsApp</title>
 
-    <!-- Bibliotecas Necessárias carregadas diretamente da internet -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Leitor de CSV -->
+    <script src="https://unpkg.com/@babel/standalone@7.24.4/babel.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <!-- Leitor de Excel (.xlsx) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
@@ -25,10 +22,12 @@
 <body>
     <div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useMemo, useEffect } = React;
+    <script type="text/babel" data-presets="react,env">
+        /** @jsx React.createElement */
+        /** @jsxFrag React.Fragment */
 
-        // --- Ícones Desenhados Manualmente ---
+        const { useState, useMemo, useEffect, useRef } = React;
+
         const Icon = ({ path, className = "", size = 24, spin = false }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`${className} ${spin ? 'animate-spin' : ''}`}>
                 {path}
@@ -59,77 +58,99 @@
             MapPin: (p) => <Icon {...p} path={<><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></>} />,
             EyeOff: (p) => <Icon {...p} path={<><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></>} />,
             Hash: (p) => <Icon {...p} path={<><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></>} />,
-            Zap: (p) => <Icon {...p} path={<><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></>} />
+            Zap: (p) => <Icon {...p} path={<><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></>} />,
+            FolderInput: (p) => <Icon {...p} path={<><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" x2="12" y1="11" y2="17"/><line x1="9" x2="12" y1="14" y2="17"/><line x1="15" x2="12" y1="14" y2="17"/></>} />,
+            Download: (p) => <Icon {...p} path={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></>} />,
+            TrendingUp: (p) => <Icon {...p} path={<><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>} />
         };
 
-        // --- Lista de Dias da Semana ---
         const daysOfWeekList = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
-        // --- Dados de Amostra (Fallback) ---
         const mockData = [
-          { "Campaign": "Aguardando Arquivo Fixo", "Sector": "Sistema", "Sent": "true", "Read": "Yes", "Send date": "Tue Apr 07 2026 09:56:07", "Template": "info_sistema", "Answer": "", "Contact number": "000000000", "Contact Email": "sistema@dashboard.com", "Message": "Faça upload do arquivo para que ele carregue automaticamente.", "Error Status": "NA" }
+          { "Campaign": "Aguardando Arquivos", "Sector": "Sistema", "Sent": "true", "Read": "Yes", "Send date": "Tue Apr 07 2026 09:56:07", "Template": "info_sistema", "Answer": "", "Contact number": "000000000", "Contact Email": "sistema@dashboard.com", "Contact Name": "Visitante", "HubSpot ID": "000", "Error Status": "NA" }
         ];
 
         function App() {
           const [data, setData] = useState(mockData);
-          const [fileName, setFileName] = useState("Verificando arquivo fixo...");
+          const [fileName, setFileName] = useState("Iniciando...");
           const [isDragging, setIsDragging] = useState(false);
           const [isLoading, setIsLoading] = useState(true);
           const [isDemo, setIsDemo] = useState(true);
           const [libsLoaded, setLibsLoaded] = useState(false);
+          
+          // Estados da Pesquisa de Respostas
+          const [answerSearchText, setAnswerSearchText] = useState("");
 
-          // Estados dos Filtros
+          // Estados do Comparador de Períodos
+          const [compPeriodAStart, setCompPeriodAStart] = useState("");
+          const [compPeriodAEnd, setCompPeriodAEnd] = useState("");
+          const [compPeriodBStart, setCompPeriodBStart] = useState("");
+          const [compPeriodBEnd, setCompPeriodBEnd] = useState("");
+
+          // Estados dos Filtros Globais
           const [selectedCampaigns, setSelectedCampaigns] = useState([]);
           const [selectedTemplates, setSelectedTemplates] = useState([]);
           const [selectedSectors, setSelectedSectors] = useState([]);
+          const [selectedMonths, setSelectedMonths] = useState([]);
           const [selectedDates, setSelectedDates] = useState([]);
           const [selectedDaysOfWeek, setSelectedDaysOfWeek] = useState([]);
           const [selectedHours, setSelectedHours] = useState([]);
 
-          // 1. CARREGAMENTO AUTOMÁTICO DO ARQUIVO FIXO (dados.csv)
           useEffect(() => {
+            let attempts = 0;
+            const startAutoFetch = async () => {
+              try {
+                const response = await fetch('dados.csv', { cache: 'no-store' });
+                if (!response.ok) throw new Error("Arquivo não encontrado.");
+                
+                const csvText = await response.text();
+                window.Papa.parse(csvText, {
+                  header: true,
+                  skipEmptyLines: true,
+                  complete: (results) => {
+                    try {
+                      const normalizedData = normalizeKeys(results.data);
+                      const validData = normalizedData.filter(row => row['Send date'] || row['Template'] || row['Campaign'] || row['Contact number']);
+                      if (validData.length > 0) {
+                        setData(validData);
+                        setIsDemo(false);
+                        setFileName("dados.csv (Base Fixa)");
+                      } else {
+                        setFileName("Nenhum dado padrão encontrado.");
+                      }
+                    } catch (e) {
+                      setFileName("Modo Demonstração");
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  },
+                  error: () => {
+                    setFileName("Modo Demonstração");
+                    setIsLoading(false);
+                  }
+                });
+              } catch (err) {
+                setFileName("Pronto para Upload Manual");
+                setIsLoading(false);
+              }
+            };
+
             const checkLibs = setInterval(() => {
+              attempts++;
               if (window.Papa && window.XLSX) {
                 setLibsLoaded(true);
                 clearInterval(checkLibs);
-
-                fetch('dados.csv')
-                  .then(response => {
-                    if (!response.ok) throw new Error("Arquivo não encontrado.");
-                    return response.text();
-                  })
-                  .then(csvText => {
-                    window.Papa.parse(csvText, {
-                      header: true,
-                      skipEmptyLines: true,
-                      complete: (results) => {
-                        const normalizedData = normalizeKeys(results.data);
-                        const validData = normalizedData.filter(row => row['Send date'] || row['Template'] || row['Campaign'] || row['Contact number']);
-                        if (validData.length > 0) {
-                          setData(validData);
-                          setIsDemo(false);
-                          setFileName("dados.csv (Base Fixa Atual)");
-                        } else {
-                          setFileName("Nenhum dado padrão encontrado.");
-                        }
-                        setIsLoading(false);
-                      },
-                      error: (err) => {
-                        setFileName("Modo de Demonstração");
-                        setIsLoading(false);
-                      }
-                    });
-                  })
-                  .catch(err => {
-                    setFileName("Modo de Demonstração");
-                    setIsLoading(false);
-                  });
+                startAutoFetch();
+              } else if (attempts >= 15) { 
+                clearInterval(checkLibs);
+                setIsLoading(false);
+                setFileName("Conexão restrita. Use upload manual.");
               }
             }, 500);
+
             return () => clearInterval(checkLibs);
           }, []);
 
-          // TRADUTOR UNIVERSAL DE COLUNAS (O SEGREDO PARA NÃO TRAVAR)
           const normalizeKeys = (dataArray) => {
             const keyMap = {
               'campaign': 'Campaign', 'campanha': 'Campaign', 'spread campaign name': 'Campaign', 'nome da campanha': 'Campaign',
@@ -140,19 +161,25 @@
               'template': 'Template', 'nome do template': 'Template', 'conversa ativa - template': 'Template',
               'answer': 'Answer', 'resposta': 'Answer', 'answered': 'Answer', 'respondido': 'Answer', 'corpo da atividade': 'Answer', 'descrição do ticket': 'Answer',
               'contact number': 'Contact number', 'numero do contato': 'Contact number', 'número': 'Contact number', 'telefone': 'Contact number', 'celular': 'Contact number', 'whatsapp': 'Contact number',
-              'error status': 'Error Status', 'erro de disparo': 'Error Status', 'erro': 'Error Status', 'motivo do erro': 'Error Status'
+              'error status': 'Error Status', 'erro de disparo': 'Error Status', 'erro': 'Error Status', 'motivo do erro': 'Error Status',
+              // Mapeamento Hubspot / Identificação do Contato
+              'contact id': 'HubSpot ID', 'record id': 'HubSpot ID', 'id do contato': 'HubSpot ID', 'hubspot id': 'HubSpot ID',
+              'name': 'Contact Name', 'nome': 'Contact Name', 'primeiro nome': 'Contact Name', 'nome do contato': 'Contact Name',
+              'email': 'Contact Email', 'e-mail': 'Contact Email', 'e mail': 'Contact Email', 'correo': 'Contact Email'
             };
 
             return dataArray.map(row => {
-              const newRow = { 'Campaign': 'Sem Campanha', 'Template': 'Desconhecido' }; // Valores Padrão
+              const newRow = { 'Campaign': 'Sem Campanha', 'Template': 'Desconhecido', 'HubSpot ID': '', 'Contact Name': '', 'Contact Email': '' };
               for (let key in row) {
                 let val = row[key];
+                // Ignorar colunas completamente vazias/fantasmas (Otimização de RAM)
+                if (val === null || val === undefined || val === '') continue;
+
                 const cleanKey = String(key).trim();
                 const lowerKey = cleanKey.toLowerCase();
-                
                 const standardKey = keyMap[lowerKey] || cleanKey;
                 
-                // Converte datas numéricas do Excel para o formato legível
+                // Converte datas numéricas do Excel
                 if (typeof val === 'number' && (lowerKey.includes('date') || lowerKey.includes('data'))) {
                   if (val > 20000 && val < 60000) {
                     const jsDate = new Date(Math.round((val - 25569) * 86400 * 1000));
@@ -160,10 +187,8 @@
                   } else {
                     val = String(val);
                   }
-                } else if (val !== null && val !== undefined) {
-                  val = String(val); // Garante que tudo seja texto
                 } else {
-                  val = "";
+                  val = String(val);
                 }
                 
                 newRow[standardKey] = val;
@@ -172,13 +197,11 @@
             });
           };
 
-          // Função Auxiliar Robusta para Tratamento de Datas e Horas (Suporta Padrão BR e ISO)
           const parseDateSafely = (rawDate) => {
               if (!rawDate) return null;
               let dStr = String(rawDate).trim();
               let d = new Date(dStr);
               
-              // Se for Inválido, tenta parsear o formato brasileiro (DD/MM/AAAA) extraindo horário se houver
               if (isNaN(d.getTime())) {
                   const brMatch = dStr.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})(?:\s+(\d{2}:\d{2}(?::\d{2})?))?/);
                   if (brMatch) {
@@ -189,81 +212,120 @@
               return isNaN(d.getTime()) ? null : d;
           };
 
-          // 2. Processamento Manual
-          const handleFileUpload = async (event) => {
-            const files = Array.from(event.target.files);
-            if (files.length === 0) return;
+          const parseFileContent = (file) => {
+             return new Promise((resolve) => {
+                const extension = file.name.split('.').pop().toLowerCase();
+                if (extension === 'csv') {
+                  window.Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => resolve(normalizeKeys(results.data)),
+                    error: () => resolve([]) 
+                  });
+                } else if (extension === 'xlsx' || extension === 'xls') {
+                  const reader = new FileReader();
+                  reader.onload = (e) => {
+                    try {
+                      const dataBuffer = new Uint8Array(e.target.result);
+                      const workbook = window.XLSX.read(dataBuffer, { type: 'array', dense: true });
+                      let allSheetsData = [];
+                      workbook.SheetNames.forEach(sheetName => {
+                          const worksheet = workbook.Sheets[sheetName];
+                          const json = window.XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                          allSheetsData = allSheetsData.concat(json);
+                      });
+                      resolve(normalizeKeys(allSheetsData));
+                    } catch (err) {
+                      resolve([]); 
+                    }
+                  };
+                  reader.onerror = () => resolve([]);
+                  reader.readAsArrayBuffer(file);
+                } else {
+                  resolve([]);
+                }
+             });
+          };
 
-            if (!window.Papa || !window.XLSX) {
-              alert("As bibliotecas de processamento ainda estão carregando. Aguarde um segundo.");
-              return;
-            }
+          const processFiles = async (fileList) => {
+            if (fileList.length === 0) return;
 
             setIsLoading(true);
-            setFileName(files.length > 1 ? `${files.length} arquivos processados` : files[0].name);
+            setFileName("A preparar ficheiros...");
             
             try {
-              const allDataPromises = files.map(file => {
-                return new Promise((resolve, reject) => {
-                  const extension = file.name.split('.').pop().toLowerCase();
-
-                  if (extension === 'csv') {
-                    window.Papa.parse(file, {
-                      header: true,
-                      skipEmptyLines: true,
-                      complete: (results) => resolve(normalizeKeys(results.data)),
-                      error: (err) => reject(err)
-                    });
-                  } else if (extension === 'xlsx' || extension === 'xls') {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                      try {
-                        const dataBuffer = new Uint8Array(e.target.result);
-                        const workbook = window.XLSX.read(dataBuffer, { type: 'array' });
-                        const firstSheetName = workbook.SheetNames[0];
-                        const worksheet = workbook.Sheets[firstSheetName];
-                        const json = window.XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-                        resolve(normalizeKeys(json));
-                      } catch (err) {
-                        reject(err);
-                      }
-                    };
-                    reader.onerror = (err) => reject(err);
-                    reader.readAsArrayBuffer(file);
-                  } else {
-                    resolve([]);
-                  }
-                });
+              const validFiles = Array.from(fileList).filter(file => {
+                 const ext = file.name.split('.').pop().toLowerCase();
+                 return ext === 'csv' || ext === 'xlsx' || ext === 'xls';
               });
 
-              const resultsArrays = await Promise.all(allDataPromises);
-              const combinedData = resultsArrays.flat();
-
-              // Filtro mais tolerante para não rejeitar a planilha
-              const validData = combinedData.filter(row => row['Send date'] || row['Template'] || row['Campaign'] || row['Contact number']);
-              
-              if (validData.length === 0) {
-                  alert("Não foi possível encontrar colunas reconhecíveis no seu arquivo (ex: Data de Criação, Campanha, Template).");
+              if (validFiles.length === 0) {
+                  setFileName("Nenhum ficheiro suportado encontrado.");
                   setIsLoading(false);
                   return;
               }
 
-              setData(validData);
+              let allCombinedData = [];
+              const totalFiles = validFiles.length;
+
+              // Processamento Serial com respiro para a UI não congelar pastas grandes
+              for (let i = 0; i < totalFiles; i++) {
+                 setFileName(`A ler ficheiro ${i + 1} de ${totalFiles}...`);
+                 // Respiro de 15ms para o browser atualizar a tela
+                 await new Promise(r => setTimeout(r, 15));
+                 
+                 const fileData = await parseFileContent(validFiles[i]);
+                 // Filtro Anti-Fantasma
+                 const validRows = fileData.filter(row => row['Send date'] || row['Template'] || row['Campaign'] || row['Contact number']);
+                 allCombinedData = allCombinedData.concat(validRows);
+              }
+
+              if (allCombinedData.length === 0) {
+                  setFileName("Arquivos lidos, mas sem dados reconhecidos.");
+                  setIsLoading(false);
+                  return;
+              }
+
+              setData(allCombinedData);
               setIsDemo(false);
+              setFileName(`${totalFiles} arquivo(s) processado(s) com sucesso.`);
               handleClearFilters();
             } catch (error) {
               console.error(error);
-              alert("Ocorreu um erro ao processar os dados. Verifique se o formato do arquivo é válido.");
+              setFileName("Ocorreu um erro no processamento.");
             } finally {
               setIsLoading(false);
-              event.target.value = '';
+            }
+          };
+
+          const handleFileInput = (event) => {
+            const files = event.target.files;
+            processFiles(files);
+            event.target.value = '';
+          };
+
+          const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+          const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+          const handleDrop = (e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            const items = e.dataTransfer.items;
+            const files = [];
+            if (items) {
+               for (let i = 0; i < items.length; i++) {
+                   if (items[i].kind === 'file') {
+                       files.push(items[i].getAsFile());
+                   }
+               }
+               processFiles(files);
+            } else {
+               processFiles(Array.from(e.dataTransfer.files));
             }
           };
 
           const getSortableDate = (dateStr) => {
             const d = parseDateSafely(dateStr);
             if (!d) return null;
-            // Preserva a exibição baseada no fuso horário do usuário para as datas da Timeline
             const year = d.getFullYear();
             const month = String(d.getMonth() + 1).padStart(2, '0');
             const day = String(d.getDate()).padStart(2, '0');
@@ -281,6 +343,7 @@
             const campaigns = new Set();
             const templates = new Set();
             const sectors = new Set();
+            const months = new Set();
             const dates = new Set();
             const daysOfWeek = new Set();
             const hours = new Set();
@@ -292,7 +355,10 @@
               
               const rawDate = row['Send date'];
               const isoDate = getSortableDate(rawDate);
-              if (isoDate) dates.add(isoDate);
+              if (isoDate) {
+                  dates.add(isoDate);
+                  months.add(isoDate.substring(0, 7)); 
+              }
 
               const d = parseDateSafely(rawDate);
               if (d) {
@@ -305,6 +371,11 @@
               campaigns: Array.from(campaigns).sort(),
               templates: Array.from(templates).sort(),
               sectors: Array.from(sectors).sort(),
+              months: Array.from(months).sort().map(val => {
+                  const parts = val.split('-');
+                  const mList = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                  return { val, label: `${mList[parseInt(parts[1], 10)-1]}/${parts[0]}` };
+              }),
               dates: Array.from(dates).sort().map(iso => ({ val: iso, label: formatDateToDisplay(iso) })),
               daysOfWeek: Array.from(daysOfWeek).sort((a,b) => a - b).map(val => ({ val, label: daysOfWeekList[val] })),
               hours: Array.from(hours).sort((a,b) => a - b).map(val => ({ val, label: `${val}h às ${val+1}h` }))
@@ -319,6 +390,7 @@
               
               const rawDate = row['Send date'];
               const isoDate = getSortableDate(rawDate);
+              const monthKey = isoDate ? isoDate.substring(0, 7) : null;
               const parsedD = parseDateSafely(rawDate);
               const dayOfWeek = parsedD ? parsedD.getDay() : null;
               const hourOfDay = parsedD ? parsedD.getHours() : null;
@@ -326,37 +398,26 @@
               if (selectedCampaigns.length > 0 && !selectedCampaigns.includes(camp)) return false;
               if (selectedTemplates.length > 0 && !selectedTemplates.includes(tpl)) return false;
               if (selectedSectors.length > 0 && !selectedSectors.includes(sec)) return false;
+              if (selectedMonths.length > 0 && !selectedMonths.includes(monthKey)) return false;
               if (selectedDates.length > 0 && !selectedDates.includes(isoDate)) return false;
               if (selectedDaysOfWeek.length > 0 && !selectedDaysOfWeek.includes(dayOfWeek)) return false;
               if (selectedHours.length > 0 && !selectedHours.includes(hourOfDay)) return false;
 
               return true;
             });
-          }, [data, selectedCampaigns, selectedTemplates, selectedSectors, selectedDates, selectedDaysOfWeek, selectedHours]);
+          }, [data, selectedCampaigns, selectedTemplates, selectedSectors, selectedMonths, selectedDates, selectedDaysOfWeek, selectedHours]);
 
           const metrics = useMemo(() => {
             if (!filteredData || filteredData.length === 0) return null;
 
-            let totalSent = 0;
-            let totalRead = 0;
-            let totalAnswered = 0;
-            let totalErrors = 0;
-            
-            const campaignCount = {};
-            const templateCount = {};
-            const dateCount = {};
-            const recentAnswers = [];
-            
-            // NOVO: Set para rastrear contatos únicos que receberam mensagem
-            const uniqueContacts = new Set();
+            let totalSent = 0, totalRead = 0, totalAnswered = 0, totalErrors = 0, totalSentBusinessDays = 0; 
+            const campaignCount = {}, templateCount = {}, dateCount = {};
+            const allValidAnswers = [];
+            const uniqueContacts = new Set(), uniqueBusinessDaysSet = new Set(), uniqueBusinessWeeksSet = new Set(); 
 
             const dayStats = Array(7).fill(0).map(() => ({ sent: 0, read: 0, answered: 0 }));
             const hourStats = Array(24).fill(0).map(() => ({ sent: 0, read: 0, answered: 0 }));
-            const templateStats = {};
-            
-            const dddCount = {};
-            const errorCount = {};
-            const templateRejection = {};
+            const templateStats = {}, dddCount = {}, errorCount = {}, templateRejection = {};
             const stopWords = ['o','a','os','as','um','uma','uns','umas','de','do','da','dos','das','em','no','na','nos','nas','por','para','com','sem','que','e','é','ou','mas','se','nao','não','sim','já','ja','me','meu','minha','eu','você','voce','ele','ela','nós','nos','qual','quais','como','onde','quando','porque','por que', 'pra', 'pro', 'ao', 'aos', 'à', 'às', 'ola', 'olá', 'bom', 'dia', 'boa', 'tarde', 'noite', 'tudo', 'bem', 'quero', 'gostaria'];
             const wordCount = {};
 
@@ -365,7 +426,6 @@
               const errorStatus = row['Error Status'];
               const hasErrorText = errorStatus && errorStatus !== 'NA' && errorStatus !== '-' && errorStatus.trim() !== '';
 
-              // Avaliação Inteligente de Envio (Assume como enviado a não ser que tenha falha clara)
               let isSent = true;
               if (sentVal === 'false' || sentVal === 'no' || sentVal === 'não' || sentVal === 'nao' || sentVal === 'falha' || hasErrorText) {
                  isSent = false;
@@ -380,7 +440,6 @@
 
               totalSent++;
               
-              // NOVO: Guarda o número do contato se a mensagem foi enviada com sucesso
               let cleanPhoneForSet = row['Contact number'] ? String(row['Contact number']).replace(/\D/g, '') : '';
               if (cleanPhoneForSet) uniqueContacts.add(cleanPhoneForSet);
 
@@ -393,13 +452,17 @@
               
               if (hasAnswer) {
                 totalAnswered++;
-                if (recentAnswers.length < 30 && answerText.toLowerCase() !== 'sim' && answerText.toLowerCase() !== 'yes' && answerText.toLowerCase() !== 'true') {
-                  recentAnswers.push({
+                if (answerText.toLowerCase() !== 'sim' && answerText.toLowerCase() !== 'yes' && answerText.toLowerCase() !== 'true') {
+                  allValidAnswers.push({
                     date: row['Send date'] ? String(row['Send date']).substring(0, 15) : 'Data Indisponível',
                     campaign: row['Campaign'] || 'Sem Campanha',
                     template: row['Template'] || 'Desconhecido',
                     text: answerText,
-                    number: row['Contact number']
+                    number: row['Contact number'],
+                    hubspotId: row['HubSpot ID'] || '',
+                    name: row['Contact Name'] || '',
+                    email: row['Contact Email'] || '',
+                    rawDate: row['Send date'] || ''
                   });
                   
                   const words = answerText.toLowerCase().replace(/[^\w\sà-ú]/g, '').split(/\s+/);
@@ -411,32 +474,40 @@
                 }
               }
 
-              let phone = row['Contact number'] ? String(row['Contact number']).replace(/\D/g, '') : '';
               let ddd = '';
-              if (phone.startsWith('55') && phone.length >= 12) {
-                ddd = phone.substring(2, 4);
-              } else if (phone.length >= 10) {
-                ddd = phone.substring(0, 2);
+              if (cleanPhoneForSet.startsWith('55') && cleanPhoneForSet.length >= 12) {
+                ddd = cleanPhoneForSet.substring(2, 4);
+              } else if (cleanPhoneForSet.length >= 10) {
+                ddd = cleanPhoneForSet.substring(0, 2);
               }
               if (ddd) dddCount[ddd] = (dddCount[ddd] || 0) + 1;
 
               const rawDate = row['Send date'];
               const d = parseDateSafely(rawDate);
+              const isoDate = getSortableDate(rawDate);
+              
+              if (isoDate) dateCount[isoDate] = (dateCount[isoDate] || 0) + 1;
+
               if (d) {
                   const day = d.getDay();
                   const hour = d.getHours();
+                  const isBusinessDay = day >= 1 && day <= 5;
                   
-                  dayStats[day].sent++;
-                  hourStats[hour].sent++;
-                  
-                  if (isRead) {
-                    dayStats[day].read++;
-                    hourStats[hour].read++;
+                  if (isBusinessDay) {
+                      totalSentBusinessDays++;
+                      if (isoDate) uniqueBusinessDaysSet.add(isoDate);
+
+                      const d_copy = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+                      const dayNum = d_copy.getUTCDay() || 7;
+                      d_copy.setUTCDate(d_copy.getUTCDate() + 4 - dayNum);
+                      const yearStart = new Date(Date.UTC(d_copy.getUTCFullYear(),0,1));
+                      const weekNo = Math.ceil((((d_copy - yearStart) / 86400000) + 1)/7);
+                      uniqueBusinessWeeksSet.add(`${d_copy.getUTCFullYear()}-W${weekNo}`);
                   }
-                  if (hasAnswer) {
-                    dayStats[day].answered++;
-                    hourStats[hour].answered++;
-                  }
+
+                  dayStats[day].sent++; hourStats[hour].sent++;
+                  if (isRead) { dayStats[day].read++; hourStats[hour].read++; }
+                  if (hasAnswer) { dayStats[day].answered++; hourStats[hour].answered++; }
               }
 
               const camp = row['Campaign'] || 'Sem Campanha';
@@ -452,22 +523,12 @@
               if (!templateRejection[tpl]) templateRejection[tpl] = { read: 0, answered: 0 };
               if (isRead) templateRejection[tpl].read++;
               if (hasAnswer) templateRejection[tpl].answered++;
-
-              const isoDate = getSortableDate(row['Send date']);
-              if (isoDate) {
-                dateCount[isoDate] = (dateCount[isoDate] || 0) + 1;
-              }
             });
 
-            // Processando Resultados dos Insights
-            const dayRanking = dayStats.map((stat, idx) => {
-                return { name: daysOfWeekList[idx], rate: stat.sent > 10 ? (stat.answered / stat.sent) * 100 : 0, sent: stat.sent };
-            }).sort((a, b) => b.rate - a.rate).filter(d => d.sent > 10).slice(0, 3);
+            const dayRanking = dayStats.map((stat, idx) => ({ name: daysOfWeekList[idx], rate: stat.sent > 10 ? (stat.answered / stat.sent) * 100 : 0, sent: stat.sent })).sort((a, b) => b.rate - a.rate).filter(d => d.sent > 10).slice(0, 3);
             if (dayRanking.length === 0) dayRanking.push({ name: '-', rate: 0, sent: 0 });
 
-            const hourRanking = hourStats.map((stat, idx) => {
-                return { name: `${idx}h às ${idx+1}h`, rate: stat.sent > 10 ? (stat.read / stat.sent) * 100 : 0, sent: stat.sent };
-            }).sort((a, b) => b.rate - a.rate).filter(h => h.sent > 10).slice(0, 3);
+            const hourRanking = hourStats.map((stat, idx) => ({ name: `${idx}h às ${idx+1}h`, rate: stat.sent > 10 ? (stat.read / stat.sent) * 100 : 0, sent: stat.sent })).sort((a, b) => b.rate - a.rate).filter(h => h.sent > 10).slice(0, 3);
             if (hourRanking.length === 0) hourRanking.push({ name: '-', rate: 0, sent: 0 });
 
             let bestTemplate = { name: '-', rate: 0, sent: 0 };
@@ -516,63 +577,115 @@
               }
             }
             
-            recentAnswers.reverse();
+            allValidAnswers.reverse();
 
-            const totalAttempts = totalSent + totalErrors;
-            const errorRateNum = totalAttempts > 0 ? (totalErrors / totalAttempts) * 100 : 0;
+            const errorRateNum = (totalSent + totalErrors) > 0 ? (totalErrors / (totalSent + totalErrors)) * 100 : 0;
             const readRateNum = totalSent > 0 ? (totalRead / totalSent) * 100 : 0;
             const answerRateNum = totalSent > 0 ? (totalAnswered / totalSent) * 100 : 0;
             
-            // NOVO: Calcula a quantidade de contatos únicos e a média de envios por pessoa
-            const uniqueContactsCount = uniqueContacts.size;
-            const avgMessagesPerContact = uniqueContactsCount > 0 ? (totalSent / uniqueContactsCount).toFixed(1) : 0;
+            const uniqueBusinessDaysCount = uniqueBusinessDaysSet.size;
+            const uniqueBusinessWeeksCount = uniqueBusinessWeeksSet.size;
+            const avgPerDay = uniqueBusinessDaysCount > 0 ? Math.round(totalSentBusinessDays / uniqueBusinessDaysCount) : 0;
+            const avgPerWeek = uniqueBusinessWeeksCount > 0 ? Math.round(totalSentBusinessDays / uniqueBusinessWeeksCount) : 0;
 
             return {
-              totalRows: filteredData.length,
-              totalSent,
-              totalErrors,
-              totalRead,
-              totalAnswered,
-              uniqueContactsCount,
-              avgMessagesPerContact,
-              errorRate: errorRateNum.toFixed(1),
-              readRate: readRateNum.toFixed(1),
-              answerRate: answerRateNum.toFixed(1),
-              topCampaigns: topCampaigns.slice(0, 5),
-              topTemplates: topTemplates.slice(0, 5),
-              timeline,
-              recentAnswers,
-              insights: {
-                dayRanking,
-                hourRanking,
-                bestTemplate,
-                topDdd,
-                topError,
-                topWords,
-                worstTemplate
-              }
+              totalRows: filteredData.length, totalSent, totalErrors, totalRead, totalAnswered,
+              uniqueContactsCount: uniqueContacts.size, avgPerWeek, avgPerDay,
+              errorRate: errorRateNum.toFixed(1), readRate: readRateNum.toFixed(1), answerRate: answerRateNum.toFixed(1),
+              topCampaigns: topCampaigns.slice(0, 5), topTemplates: topTemplates.slice(0, 5),
+              timeline, allValidAnswers,
+              insights: { dayRanking, hourRanking, bestTemplate, topDdd, topError, topWords, worstTemplate }
             };
           }, [filteredData]);
 
+          const calculatePeriodMetrics = (start, end) => {
+            if (!start || !end || !filteredData) return null;
+            let sent = 0, read = 0, answered = 0;
+            filteredData.forEach(row => {
+               const rawDate = row['Send date'];
+               const iso = getSortableDate(rawDate);
+               if (iso && iso >= start && iso <= end) {
+                  const sentVal = row['Sent']?.toString().toLowerCase();
+                  const errorStatus = row['Error Status'];
+                  const hasError = (sentVal === 'false' || sentVal === 'no' || sentVal === 'não' || sentVal === 'nao' || sentVal === 'falha' || (errorStatus && errorStatus !== 'NA' && errorStatus !== '-' && errorStatus.trim() !== ''));
+                  if (!hasError) {
+                      sent++;
+                      const readVal = row['Read']?.toString().toLowerCase();
+                      if (readVal === 'yes' || readVal === 'sim' || readVal === 'true' || readVal === 'lido' || readVal === 'lida') read++;
+                      const answerText = row['Answer']?.toString().trim();
+                      if (answerText && answerText !== 'NA' && answerText !== '-' && answerText.toLowerCase() !== 'não' && answerText.toLowerCase() !== 'nao') answered++;
+                  }
+               }
+            });
+            return {
+                sent,
+                readRate: sent > 0 ? ((read / sent) * 100).toFixed(1) : 0,
+                ansRate: sent > 0 ? ((answered / sent) * 100).toFixed(1) : 0
+            };
+          };
+
+          const statsA = calculatePeriodMetrics(compPeriodAStart, compPeriodAEnd);
+          const statsB = calculatePeriodMetrics(compPeriodBStart, compPeriodBEnd);
+
           const handleClearFilters = () => {
-            setSelectedCampaigns([]);
-            setSelectedTemplates([]);
-            setSelectedSectors([]);
-            setSelectedDates([]);
-            setSelectedDaysOfWeek([]);
-            setSelectedHours([]);
+            setSelectedCampaigns([]); setSelectedTemplates([]); setSelectedSectors([]);
+            setSelectedMonths([]); setSelectedDates([]); setSelectedDaysOfWeek([]); setSelectedHours([]);
+          };
+
+          const displayAnswers = useMemo(() => {
+              if (!metrics || !metrics.allValidAnswers) return [];
+              const terms = answerSearchText.toLowerCase().split(',').map(t => t.trim()).filter(t => t !== '');
+              
+              if (terms.length === 0) return metrics.allValidAnswers;
+
+              return metrics.allValidAnswers.filter(resp => {
+                  const searchString = `${resp.text} ${resp.number} ${resp.campaign} ${resp.template}`.toLowerCase();
+                  return terms.some(t => searchString.includes(t));
+              });
+          }, [metrics, answerSearchText]);
+
+          const exportToCSV = () => {
+             const exportData = displayAnswers;
+             if (exportData.length === 0) {
+                 alert("Não há dados para exportar com os filtros atuais.");
+                 return;
+             }
+
+             const headers = ["Data de Envio", "HubSpot ID", "Nome", "E-mail", "Telefone", "Campanha", "Template", "Resposta"];
+             const csvContent = [
+                 headers.join(","),
+                 ...exportData.map(r => [
+                     `"${r.rawDate}"`,
+                     `"${r.hubspotId}"`,
+                     `"${r.name}"`,
+                     `"${r.email}"`,
+                     `"${r.number}"`,
+                     `"${r.campaign}"`,
+                     `"${r.template}"`,
+                     `"${r.text.replace(/"/g, '""')}"`
+                 ].join(","))
+             ].join("\n");
+             
+             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+             const link = document.createElement("a");
+             link.href = URL.createObjectURL(blob);
+             link.download = "Exportacao_Respostas_HubSpot.csv";
+             link.click();
           };
 
           return (
-            <div className="min-h-screen bg-slate-50 text-slate-800 font-sans p-4 md:p-8">
+            <div className="min-h-screen bg-slate-50 text-slate-800 font-sans p-4 md:p-8"
+                 onDragOver={handleDragOver}
+                 onDragLeave={handleDragLeave}
+                 onDrop={handleDrop}>
               <div className="max-w-7xl mx-auto mb-8">
                 
                 {isDemo && !isLoading && (
-                  <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl flex items-start gap-3">
-                    <Icons.AlertCircle size={20} className="text-amber-500 shrink-0 mt-0.5" />
+                  <div className="mb-6 bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl flex items-start gap-3">
+                    <Icons.Info size={20} className="text-blue-500 shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="font-semibold text-sm">Base fixa não encontrada</h4>
-                      <p className="text-sm mt-1">Para que o dashboard carregue sozinho, renomeie o seu relatório para <strong>dados.csv</strong> e faça o upload dele no GitHub. Enquanto isso, arraste seu arquivo manualmente no botão à direita.</p>
+                      <h4 className="font-semibold text-sm">Pronto para uso!</h4>
+                      <p className="text-sm mt-1">Clique no botão à direita ou arraste seus arquivos para a tela (pode selecionar <strong>vários arquivos ou até uma pasta inteira</strong>!).</p>
                     </div>
                   </div>
                 )}
@@ -586,47 +699,76 @@
                     <p className="text-slate-500 mt-1">Métricas de relacionamento com candidatos</p>
                   </div>
                   
-                  <div className="relative">
-                    <input 
-                      type="file" 
-                      accept=".csv, .xlsx, .xls" 
-                      multiple
-                      onChange={handleFileUpload}
-                      disabled={!libsLoaded || isLoading}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
-                      title="Carregue novas planilhas para substituir a base"
-                    />
-                    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed transition-colors ${isLoading || !libsLoaded ? 'opacity-70 bg-slate-50 cursor-not-allowed' : ''} ${isDragging ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white hover:border-emerald-400'}`}>
-                      <div className={`${isLoading ? 'bg-slate-200 text-slate-500' : 'bg-emerald-100 text-emerald-600'} p-2 rounded-lg`}>
-                         {isLoading ? <Icons.Loader2 size={20} spin /> : <Icons.UploadCloud size={20} />}
+                  <div className="relative flex gap-2">
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept=".csv, .xlsx, .xls" 
+                        multiple
+                        onChange={handleFileInput}
+                        disabled={!libsLoaded || isLoading}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
+                        title="Selecione Arquivos"
+                      />
+                      <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed transition-colors ${isLoading || !libsLoaded ? 'opacity-70 bg-slate-50 cursor-not-allowed' : ''} ${isDragging ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white hover:border-emerald-400'}`}>
+                        <div className={`${isLoading ? 'bg-slate-200 text-slate-500' : 'bg-emerald-100 text-emerald-600'} p-2 rounded-lg`}>
+                           {isLoading ? <Icons.Loader2 size={20} spin /> : <Icons.UploadCloud size={20} />}
+                        </div>
+                        <div className="flex flex-col text-left">
+                          <span className="text-sm font-medium text-slate-700">
+                            {isLoading ? 'Lendo dados...' : (!libsLoaded ? 'Aguarde...' : 'Carregar Arquivos')}
+                          </span>
+                          <span className="text-xs text-slate-400 truncate max-w-[150px]">{fileName}</span>
+                        </div>
                       </div>
-                      <div className="flex flex-col text-left">
-                        <span className="text-sm font-medium text-slate-700">
-                          {isLoading ? 'Lendo dados...' : (!libsLoaded ? 'Preparando...' : 'Substituir Dados Atuais')}
-                        </span>
-                        <span className="text-xs text-slate-400 truncate max-w-[200px]">{fileName}</span>
+                    </div>
+
+                    <div className="relative hidden md:block">
+                      <input 
+                        type="file" 
+                        webkitdirectory="true"
+                        directory="true"
+                        onChange={handleFileInput}
+                        disabled={!libsLoaded || isLoading}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
+                        title="Selecione uma Pasta Inteira"
+                      />
+                      <div className={`flex items-center gap-2 px-3 py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors ${isLoading || !libsLoaded ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                         <Icons.FolderInput size={20} className="text-slate-500" />
+                         <span className="text-sm font-medium text-slate-600">Pasta</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
+                {isDragging && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-emerald-500/90 backdrop-blur-sm pointer-events-none">
+                        <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center">
+                            <Icons.UploadCloud size={64} className="text-emerald-500 mb-4 animate-bounce" />
+                            <h2 className="text-3xl font-bold text-slate-800">Solte seus arquivos aqui</h2>
+                            <p className="text-slate-500 mt-2">Lemos pastas inteiras, .csv e .xlsx</p>
+                        </div>
+                    </div>
+                )}
+
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6 relative z-10">
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-2">
                       <Icons.Filter size={18} className="text-slate-400" />
                       <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Filtros Avançados</h2>
                     </div>
-                    {(selectedCampaigns.length > 0 || selectedTemplates.length > 0 || selectedSectors.length > 0 || selectedDates.length > 0 || selectedDaysOfWeek.length > 0 || selectedHours.length > 0) && (
+                    {(selectedCampaigns.length > 0 || selectedTemplates.length > 0 || selectedSectors.length > 0 || selectedMonths.length > 0 || selectedDates.length > 0 || selectedDaysOfWeek.length > 0 || selectedHours.length > 0) && (
                       <button onClick={handleClearFilters} className="text-xs font-medium text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors">
                         Limpar Todos
                       </button>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
                     <MultiSelect label="Setores" options={filterOptions.sectors} selected={selectedSectors} onChange={setSelectedSectors} placeholder="Todos os setores" />
                     <MultiSelect label="Campanhas" options={filterOptions.campaigns} selected={selectedCampaigns} onChange={setSelectedCampaigns} placeholder="Todas as campanhas" />
                     <MultiSelect label="Templates" options={filterOptions.templates} selected={selectedTemplates} onChange={setSelectedTemplates} placeholder="Todos os templates" />
+                    <MultiSelect label="Meses" options={filterOptions.months} selected={selectedMonths} onChange={setSelectedMonths} placeholder="Todos os meses" />
                     <MultiSelect label="Dias Específicos" options={filterOptions.dates} selected={selectedDates} onChange={setSelectedDates} placeholder="Todo o período" />
                     <MultiSelect label="Dias da Semana" options={filterOptions.daysOfWeek} selected={selectedDaysOfWeek} onChange={setSelectedDaysOfWeek} placeholder="Todos os dias" />
                     <MultiSelect label="Horários" options={filterOptions.hours} selected={selectedHours} onChange={setSelectedHours} placeholder="Todos os horários" />
@@ -636,29 +778,74 @@
                 {isLoading ? (
                   <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-100 text-center flex flex-col items-center justify-center">
                     <Icons.Loader2 size={48} className="text-emerald-500 mb-4 animate-spin" />
-                    <h3 className="text-lg font-medium text-slate-700">A processar a base de dados...</h3>
+                    <h3 className="text-lg font-medium text-slate-700">{fileName}</h3>
+                    <p className="text-slate-500 mt-1">Por favor, não feche esta janela.</p>
                   </div>
                 ) : !metrics || metrics.totalRows === 0 ? (
                   <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-100 text-center">
                     <Icons.AlertCircle size={48} className="mx-auto text-slate-300 mb-3" />
                     <h3 className="text-lg font-medium text-slate-700">Nenhum dado encontrado</h3>
-                    <p className="text-slate-500 mt-1">Verifique se o ficheiro tem colunas de Campanha, Template ou Data e reavalie os seus filtros.</p>
+                    <p className="text-slate-500 mt-1">Verifique se a sua pasta possui arquivos válidos e reavalie os seus filtros acima.</p>
                     <button onClick={handleClearFilters} className="mt-6 px-5 py-2.5 bg-emerald-100 text-emerald-700 rounded-xl text-sm font-semibold hover:bg-emerald-200 transition-colors">
                       Limpar Filtros
                     </button>
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-                      <StatCard title="Enviados (Sucesso)" value={metrics.totalSent.toLocaleString('pt-BR')} icon={<Icons.Smartphone className="text-blue-500" />} bgColor="bg-blue-50" subtitle="Com sucesso" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                      <StatCard title="Enviados (Sucesso)" value={metrics.totalSent.toLocaleString('pt-BR')} icon={<Icons.Smartphone className="text-blue-500" />} bgColor="bg-blue-50" subtitle="Total disparado" />
                       <StatCard title="Contatos Únicos" value={metrics.uniqueContactsCount.toLocaleString('pt-BR')} icon={<Icons.Users className="text-indigo-500" />} bgColor="bg-indigo-50" subtitle="Pessoas impactadas" />
-                      <StatCard title="Média de Envios" value={metrics.avgMessagesPerContact} icon={<Icons.BarChartHorizontal className="text-violet-500" />} bgColor="bg-violet-50" subtitle="Por contato" />
-                      <StatCard title="Lidas" value={metrics.totalRead.toLocaleString('pt-BR')} icon={<Icons.CheckCheck className="text-emerald-500" />} bgColor="bg-emerald-50" subtitle={`${metrics.readRate}% do enviado`} />
+                      <StatCard title="Média Diária" value={metrics.avgPerDay.toLocaleString('pt-BR')} icon={<Icons.Clock className="text-pink-500" />} bgColor="bg-pink-50" subtitle="Disparos por dia útil" />
+                      <StatCard title="Média Semanal" value={metrics.avgPerWeek.toLocaleString('pt-BR')} icon={<Icons.CalendarDays className="text-violet-500" />} bgColor="bg-violet-50" subtitle="Disparos por semana útil" />
+                      <StatCard title="Mensagens Lidas" value={metrics.totalRead.toLocaleString('pt-BR')} icon={<Icons.CheckCheck className="text-emerald-500" />} bgColor="bg-emerald-50" subtitle={`${metrics.readRate}% do enviado`} />
                       <StatCard title="Respostas" value={metrics.totalAnswered.toLocaleString('pt-BR')} icon={<Icons.MessageSquareReply className="text-orange-500" />} bgColor="bg-orange-50" subtitle={`${metrics.answerRate}% de interação`} />
                       <StatCard title="Falhas (Erros)" value={metrics.totalErrors.toLocaleString('pt-BR')} icon={<Icons.XCircle className="text-red-500" />} bgColor="bg-red-50" subtitle={`${metrics.errorRate}% de erro`} />
+                      <StatCard title="Campanhas Ativas" value={metrics.topCampaigns.length.toLocaleString('pt-BR')} icon={<Icons.Megaphone className="text-purple-500" />} bgColor="bg-purple-50" subtitle="Nos filtros atuais" />
                     </div>
 
-                    {/* SEÇÃO: INSIGHTS DE ENGAJAMENTO */}
+                    <div className="mb-6 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Icons.TrendingUp size={22} className="text-indigo-500" />
+                        <h2 className="text-lg font-semibold text-slate-800">Comparador Dinâmico de Períodos</h2>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                         <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                            <h3 className="font-semibold text-slate-700 mb-3">Período A</h3>
+                            <div className="flex gap-3 mb-4">
+                               <input type="date" value={compPeriodAStart} onChange={e => setCompPeriodAStart(e.target.value)} className="w-full text-sm p-2 border rounded-lg" />
+                               <input type="date" value={compPeriodAEnd} onChange={e => setCompPeriodAEnd(e.target.value)} className="w-full text-sm p-2 border rounded-lg" />
+                            </div>
+                            {statsA ? (
+                               <div className="flex justify-between items-center bg-white p-3 rounded-lg border">
+                                  <div className="text-center"><p className="text-xs text-slate-500">Envios</p><p className="font-bold text-slate-800">{statsA.sent.toLocaleString('pt-BR')}</p></div>
+                                  <div className="text-center"><p className="text-xs text-slate-500">Leitura</p><p className="font-bold text-emerald-600">{statsA.readRate}%</p></div>
+                                  <div className="text-center"><p className="text-xs text-slate-500">Resposta</p><p className="font-bold text-orange-500">{statsA.ansRate}%</p></div>
+                               </div>
+                            ) : (
+                               <div className="text-sm text-slate-400 text-center py-4 bg-white rounded-lg border border-dashed">Selecione as datas para comparar</div>
+                            )}
+                         </div>
+
+                         <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                            <h3 className="font-semibold text-slate-700 mb-3">Período B</h3>
+                            <div className="flex gap-3 mb-4">
+                               <input type="date" value={compPeriodBStart} onChange={e => setCompPeriodBStart(e.target.value)} className="w-full text-sm p-2 border rounded-lg" />
+                               <input type="date" value={compPeriodBEnd} onChange={e => setCompPeriodBEnd(e.target.value)} className="w-full text-sm p-2 border rounded-lg" />
+                            </div>
+                            {statsB ? (
+                               <div className="flex justify-between items-center bg-white p-3 rounded-lg border">
+                                  <div className="text-center"><p className="text-xs text-slate-500">Envios</p><p className="font-bold text-slate-800">{statsB.sent.toLocaleString('pt-BR')}</p></div>
+                                  <div className="text-center"><p className="text-xs text-slate-500">Leitura</p><p className="font-bold text-emerald-600">{statsB.readRate}%</p></div>
+                                  <div className="text-center"><p className="text-xs text-slate-500">Resposta</p><p className="font-bold text-orange-500">{statsB.ansRate}%</p></div>
+                               </div>
+                            ) : (
+                               <div className="text-sm text-slate-400 text-center py-4 bg-white rounded-lg border border-dashed">Selecione as datas para comparar</div>
+                            )}
+                         </div>
+                      </div>
+                    </div>
+
                     <div className="mb-6">
                       <div className="flex items-center gap-2 mb-4">
                         <Icons.Lightbulb size={22} className="text-amber-500" />
@@ -666,7 +853,6 @@
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {/* Insight 1: Melhor Dia */}
                         <div className="bg-gradient-to-br from-indigo-50 to-white p-5 rounded-2xl shadow-sm border border-indigo-100 flex flex-col">
                           <div className="flex items-center gap-2 mb-2 text-indigo-600">
                             <Icons.CalendarStar size={18} />
@@ -683,7 +869,6 @@
                           </div>
                         </div>
 
-                        {/* Insight 2: Melhor Horário */}
                         <div className="bg-gradient-to-br from-sky-50 to-white p-5 rounded-2xl shadow-sm border border-sky-100 flex flex-col">
                           <div className="flex items-center gap-2 mb-2 text-sky-600">
                             <Icons.Clock size={18} />
@@ -700,7 +885,6 @@
                           </div>
                         </div>
 
-                        {/* Insight 3: Melhor Template */}
                         <div className="bg-gradient-to-br from-fuchsia-50 to-white p-5 rounded-2xl shadow-sm border border-fuchsia-100">
                           <div className="flex items-center gap-2 mb-2 text-fuchsia-600">
                             <Icons.Award size={18} />
@@ -716,23 +900,6 @@
                           </div>
                         </div>
 
-                        {/* Insight 4: Rejeição (Vácuo) */}
-                        <div className="bg-gradient-to-br from-slate-50 to-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                          <div className="flex items-center gap-2 mb-2 text-slate-600">
-                            <Icons.EyeOff size={18} />
-                            <h3 className="text-sm font-semibold uppercase tracking-wide">Maior "Vácuo"</h3>
-                          </div>
-                          <p className="text-slate-500 text-xs mb-1">Template muito lido, mas ignorado</p>
-                          <div className="text-lg font-bold text-slate-800 mb-1 truncate" title={metrics.insights.worstTemplate.name}>
-                            {metrics.insights.worstTemplate.name}
-                          </div>
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-slate-600 font-bold bg-slate-100 px-2 py-0.5 rounded text-sm">{metrics.insights.worstTemplate.rate.toFixed(1)}%</span>
-                            <span className="text-xs text-slate-400">não respondem</span>
-                          </div>
-                        </div>
-
-                        {/* Insight 5: Top DDD */}
                         <div className="bg-gradient-to-br from-emerald-50 to-white p-5 rounded-2xl shadow-sm border border-emerald-100">
                           <div className="flex items-center gap-2 mb-2 text-emerald-600">
                             <Icons.MapPin size={18} />
@@ -745,40 +912,8 @@
                             <span className="text-xs text-slate-400">contatos</span>
                           </div>
                         </div>
-
-                        {/* Insight 6: Nuvem de Assuntos */}
-                        <div className="bg-gradient-to-br from-orange-50 to-white p-5 rounded-2xl shadow-sm border border-orange-100">
-                          <div className="flex items-center gap-2 mb-2 text-orange-600">
-                            <Icons.Hash size={18} />
-                            <h3 className="text-sm font-semibold uppercase tracking-wide">Assuntos Quentes</h3>
-                          </div>
-                          <p className="text-slate-500 text-xs mb-1">Palavras mais usadas nas respostas</p>
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {metrics.insights.topWords.length > 0 ? metrics.insights.topWords.map((word, i) => (
-                              <span key={i} className="text-orange-700 font-medium bg-orange-100 px-2 py-1 rounded-md text-xs uppercase">{word}</span>
-                            )) : <span className="text-xs text-slate-400">Sem dados suficientes</span>}
-                          </div>
-                        </div>
-
-                        {/* Insight 7: Principal Erro */}
-                        <div className="bg-gradient-to-br from-red-50 to-white p-5 rounded-2xl shadow-sm border border-red-100 md:col-span-2 lg:col-span-2">
-                          <div className="flex items-center gap-2 mb-2 text-red-600">
-                            <Icons.Zap size={18} />
-                            <h3 className="text-sm font-semibold uppercase tracking-wide">Raio-X de Falhas</h3>
-                          </div>
-                          <p className="text-slate-500 text-xs mb-1">Motivo mais comum para falha de envio na base</p>
-                          <div className="text-lg font-bold text-slate-800 mb-1 truncate" title={metrics.insights.topError.name}>
-                            {metrics.insights.topError.name}
-                          </div>
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-red-600 font-bold bg-red-100 px-2 py-0.5 rounded text-sm">{metrics.insights.topError.count}</span>
-                            <span className="text-xs text-slate-400">ocorrências</span>
-                          </div>
-                        </div>
-
                       </div>
                     </div>
-                    {/* FIM DA SEÇÃO DE INSIGHTS */}
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-2">
@@ -794,9 +929,9 @@
                       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
                          <h2 className="text-lg font-semibold text-slate-800 mb-2">Templates Mais Usados</h2>
                          <p className="text-xs text-slate-500 mb-6">Volume por tipo de mensagem</p>
-                         <div className="space-y-4 flex-grow">
+                         <div className="space-y-4 flex-grow overflow-y-auto custom-scrollbar pr-2 max-h-64">
                           {metrics.topTemplates.map((tpl, index) => (
-                            <div key={index} className="flex justify-between items-center border-b border-slate-50 pb-2 last:border-0">
+                            <div key={index} className="flex justify-between items-center border-b border-slate-50 pb-2 mb-2 last:border-0 last:mb-0">
                               <span className="text-sm text-slate-600 truncate pr-4 font-medium" title={tpl[0]}>
                                 {tpl[0]}
                               </span>
@@ -809,31 +944,56 @@
                       </div>
 
                       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-3">
-                        <div className="flex items-center gap-2 mb-6">
-                          <Icons.Users size={20} className="text-orange-400" />
-                          <h2 className="text-lg font-semibold text-slate-800">Dúvidas e Respostas dos Candidatos</h2>
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                          <div className="flex items-center gap-2">
+                            <Icons.Users size={20} className="text-orange-400" />
+                            <h2 className="text-lg font-semibold text-slate-800">Respostas e Dúvidas dos Candidatos</h2>
+                            <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs font-bold">{displayAnswers.length}</span>
+                          </div>
+                          
+                          <div className="flex gap-2 w-full md:w-auto">
+                            <div className="relative w-full md:w-72">
+                               <input 
+                                  type="text" 
+                                  placeholder="Ex: admissão, adm, boleto..." 
+                                  value={answerSearchText}
+                                  onChange={e => setAnswerSearchText(e.target.value)}
+                                  className="w-full pl-8 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-orange-500 outline-none"
+                               />
+                               <Icons.Search size={14} className="absolute left-3 top-3 text-slate-400" />
+                            </div>
+                            <button onClick={exportToCSV} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-slate-700 transition-colors whitespace-nowrap">
+                               <Icons.Download size={16} /> Exportar
+                            </button>
+                          </div>
                         </div>
                         
-                        {metrics.recentAnswers.length === 0 ? (
+                        {displayAnswers.length === 0 ? (
                           <div className="py-8 text-center text-slate-400 text-sm">
-                            Nenhuma resposta dos candidatos nos filtros atuais.
+                            Nenhuma resposta atende aos seus filtros.
                           </div>
                         ) : (
-                          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                            {metrics.recentAnswers.map((resp, i) => (
+                          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                            {displayAnswers.slice(0, 100).map((resp, i) => (
                               <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100 transition-colors">
-                                <p className="text-slate-700 text-sm italic mb-2">"{resp.text}"</p>
-                                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-500 items-center">
-                                  <span className="font-medium text-slate-600">Template: {resp.template}</span>
+                                <p className="text-slate-700 text-sm italic mb-2 font-medium">"{resp.text}"</p>
+                                <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3 text-[11px] text-slate-500 items-center bg-white p-2 rounded-lg border border-slate-100">
+                                  {resp.name && <span className="font-semibold text-slate-700 border-r pr-4">👤 {resp.name}</span>}
+                                  {resp.hubspotId && <span className="text-slate-600 border-r pr-4">ID: {resp.hubspotId}</span>}
+                                  <span className="font-bold text-slate-700 border-r pr-4">📞 {resp.number}</span>
+                                  <span className="text-slate-500">Template: {resp.template}</span>
                                   <span>•</span>
-                                  <span>Campanha: {resp.campaign}</span>
+                                  <span className="truncate max-w-[200px]" title={resp.campaign}>Campanha: {resp.campaign}</span>
                                   <span>•</span>
                                   <span>{resp.date}</span>
-                                  <span>•</span>
-                                  <span className="font-medium">Número: {resp.number}</span>
                                 </div>
                               </div>
                             ))}
+                            {displayAnswers.length > 100 && (
+                              <div className="text-center text-xs text-slate-400 pt-4">
+                                  Mostrando as 100 mais recentes. Exporte o arquivo para ver todas as {displayAnswers.length} respostas.
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
